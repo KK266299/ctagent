@@ -4,7 +4,18 @@
 #       MedQ-Bench (https://github.com/liujiyaoFDU/MedQ-Bench)
 # ============================================================================
 
-from src.downstream.base import BaseDownstreamTask
+from src.downstream.base import BaseDownstreamTask, DiagnosisResult
 from src.downstream.classifier import CTClassifier
+from src.downstream.closed_api_adapter import ClosedAPIAdapter, APIConfig
+from src.downstream.prompt_builder import PromptBuilder
+from src.downstream.response_parser import ResponseParser
 
-__all__ = ["BaseDownstreamTask", "CTClassifier"]
+__all__ = [
+    "BaseDownstreamTask",
+    "DiagnosisResult",
+    "CTClassifier",
+    "ClosedAPIAdapter",
+    "APIConfig",
+    "PromptBuilder",
+    "ResponseParser",
+]

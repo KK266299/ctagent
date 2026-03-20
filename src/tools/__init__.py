@@ -6,5 +6,6 @@
 
 from src.tools.base import BaseTool, ToolResult
 from src.tools.registry import ToolRegistry
+from src.tools import mcp_style
 
-__all__ = ["BaseTool", "ToolResult", "ToolRegistry"]
+__all__ = ["BaseTool", "ToolResult", "ToolRegistry", "mcp_style"]

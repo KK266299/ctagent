@@ -4,7 +4,16 @@
 #       MedAgent-Pro (https://github.com/jinlab-imvr/MedAgent-Pro) — agent planning
 # ============================================================================
 
-from src.planner.base import BasePlanner, Plan
+from src.planner.base import BasePlanner, Plan, ToolCall
 from src.planner.rule_planner import RuleBasedPlanner
+from src.planner.agent_based import AgentBasedPlanner
+from src.planner.policy_rl_placeholder import RLPolicyPlanner
 
-__all__ = ["BasePlanner", "Plan", "RuleBasedPlanner"]
+__all__ = [
+    "BasePlanner",
+    "Plan",
+    "ToolCall",
+    "RuleBasedPlanner",
+    "AgentBasedPlanner",
+    "RLPolicyPlanner",
+]
