@@ -1,0 +1,19 @@
+# ============================================================================
+# 模块职责: 噪声退化配置 — CT 图像常见噪声类型与参数
+# 参考: ProCT (https://github.com/Masaaki-75/proct)
+#       PromptCT (https://github.com/shibaoshun/PromptCT)
+# ============================================================================
+
+degradation:
+  type: "noise"
+  variants:
+    gaussian:
+      enabled: true
+      sigma_range: [10, 75]
+    poisson:
+      enabled: true
+      scale_range: [1.0, 5.0]
+    # 低剂量 CT 特有的量子噪声
+    quantum:
+      enabled: true
+      dose_levels: [0.25, 0.1, 0.05]  # 相对于 full-dose

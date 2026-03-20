@@ -1,0 +1,37 @@
+# ============================================================================
+# 模块职责: 经典图像处理工具配置
+# 参考: JarvisIR (https://github.com/LYL1015/JarvisIR) — tool definitions
+# ============================================================================
+
+tools:
+  denoise_nlm:
+    type: "classical"
+    name: "Non-Local Means Denoising"
+    enabled: true
+    params:
+      h: 10
+      template_window_size: 7
+      search_window_size: 21
+
+  denoise_bm3d:
+    type: "classical"
+    name: "BM3D Denoising"
+    enabled: true
+    params:
+      sigma_psd: 25
+
+  sharpen_usm:
+    type: "classical"
+    name: "Unsharp Mask Sharpening"
+    enabled: true
+    params:
+      radius: 2.0
+      amount: 1.5
+
+  histogram_eq:
+    type: "classical"
+    name: "CLAHE"
+    enabled: true
+    params:
+      clip_limit: 2.0
+      tile_grid_size: [8, 8]

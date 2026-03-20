@@ -1,0 +1,17 @@
+# ============================================================================
+# 模块职责: 分辨率退化配置 — 低分辨率 / 厚层重建
+# 参考: ProCT (https://github.com/Masaaki-75/proct)
+#       PromptCT (https://github.com/shibaoshun/PromptCT)
+# ============================================================================
+
+degradation:
+  type: "resolution"
+  variants:
+    downsample:
+      enabled: true
+      scale_factors: [2, 4]
+      interpolation: "bicubic"
+    thick_slice:
+      enabled: true
+      slice_thickness_mm: [3.0, 5.0, 10.0]
+      target_thickness_mm: 1.0

@@ -1,0 +1,36 @@
+# ============================================================================
+# 模块职责: 最小可行实验配置 — 第一版 MVP
+# ============================================================================
+
+experiment:
+  name: "minimal_mvp"
+  description: "Minimal viable pipeline: degradation detection → rule-based planning → restoration → evaluation"
+
+# 引用其他配置
+data:
+  config: "configs/data/default_data.yaml"
+  paths: "configs/data/paths.yaml"
+
+degradation:
+  detection_method: "iqa_threshold"  # 基于 IQA 指标阈值判定
+
+planner:
+  config: "configs/planner/rule_based.yaml"
+
+tools:
+  configs:
+    - "configs/tools/classical.yaml"
+    - "configs/tools/ct_specific.yaml"
+
+eval:
+  metrics:
+    - "psnr"
+    - "ssim"
+    - "lpips"
+  save_results: true
+
+# 运行设置
+runtime:
+  device: "cuda"
+  seed: 42
+  num_workers: 4

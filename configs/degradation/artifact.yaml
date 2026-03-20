@@ -1,0 +1,20 @@
+# ============================================================================
+# 模块职责: 伪影退化配置 — CT 特有伪影类型
+# 参考: RISE-MAR (https://github.com/Masaaki-75/rise-mar)
+#       ProCT (https://github.com/Masaaki-75/proct)
+# ============================================================================
+
+degradation:
+  type: "artifact"
+  variants:
+    metal_artifact:
+      enabled: true
+      metal_types: ["hip", "dental", "spine"]
+      severity: ["mild", "moderate", "severe"]
+    streak_artifact:
+      enabled: true
+    ring_artifact:
+      enabled: true
+      ring_count_range: [1, 5]
+    motion_artifact:
+      enabled: false

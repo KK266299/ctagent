@@ -1,0 +1,25 @@
+# ============================================================================
+# 模块职责: 基于规则的 Planner 配置 — 第一版最小可行系统
+# 参考: JarvisIR (https://github.com/LYL1015/JarvisIR) — planner design
+#       MedAgent-Pro (https://github.com/jinlab-imvr/MedAgent-Pro)
+# ============================================================================
+
+planner:
+  type: "rule_based"
+  # 退化类型 -> 推荐工具的映射
+  rules:
+    noise:
+      mild: ["denoise_nlm"]
+      moderate: ["denoise_bm3d"]
+      severe: ["ldct_denoiser"]
+    artifact:
+      metal: ["mar_rise"]
+    blur:
+      mild: ["sharpen_usm"]
+      severe: ["sr_ct"]
+    resolution:
+      low: ["sr_ct"]
+
+  # 是否允许工具链组合
+  allow_chaining: true
+  max_chain_length: 3

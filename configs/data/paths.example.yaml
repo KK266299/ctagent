@@ -1,0 +1,18 @@
+# ============================================================================
+# 模块职责: 数据路径模板 — 用户复制为 paths.yaml 后填入实际路径
+# 注意: paths.yaml 应加入 .gitignore，此文件仅为示例
+# ============================================================================
+
+paths:
+  # 原始 CT 数据目录
+  raw_data_dir: "/path/to/raw/ct/data"
+  # 处理后数据目录
+  processed_data_dir: "/path/to/processed/data"
+  # 模型权重目录
+  model_weights_dir: "/path/to/pretrained/weights"
+  # 输出目录
+  output_dir: "/path/to/output"
+  # LLaMA-Factory 根目录 (并列放置)
+  llama_factory_dir: "../LLaMA-Factory"
+  # 日志目录
+  log_dir: "/path/to/logs"

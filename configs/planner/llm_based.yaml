@@ -1,0 +1,25 @@
+# ============================================================================
+# 模块职责: LLM-based Planner 配置 — 未来版本使用 LLM 做规划
+# 参考: JarvisIR (https://github.com/LYL1015/JarvisIR)
+#       MedAgent-Pro (https://github.com/jinlab-imvr/MedAgent-Pro)
+#       LLaMA-Factory (https://github.com/hiyouga/LLaMA-Factory) — 推理调用
+# ============================================================================
+
+planner:
+  type: "llm_based"
+  model:
+    # 通过 LLaMA-Factory 部署的模型
+    api_url: "http://localhost:8000/v1/chat/completions"
+    model_name: "llama3-8b"
+    temperature: 0.1
+    max_tokens: 512
+
+  # 系统 prompt 模板
+  system_prompt: |
+    You are a CT image restoration planner. Given the degradation analysis,
+    select and order the appropriate restoration tools.
+    Available tools: {tool_list}
+    Output a JSON list of tool calls.
+
+  # 超时设置
+  timeout_seconds: 30

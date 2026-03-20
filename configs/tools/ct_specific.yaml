@@ -1,0 +1,40 @@
+# ============================================================================
+# 模块职责: CT 专用修复工具配置
+# 参考: ProCT (https://github.com/Masaaki-75/proct)
+#       PromptCT (https://github.com/shibaoshun/PromptCT)
+#       RISE-MAR (https://github.com/Masaaki-75/rise-mar)
+# ============================================================================
+
+tools:
+  mar_rise:
+    type: "ct"
+    name: "RISE Metal Artifact Reduction"
+    enabled: true
+    params:
+      checkpoint: null  # 填入模型权重路径
+      device: "cuda"
+
+  ldct_denoiser:
+    type: "ct"
+    name: "Low-Dose CT Denoiser"
+    enabled: true
+    params:
+      checkpoint: null
+      device: "cuda"
+
+  sr_ct:
+    type: "ct"
+    name: "CT Super Resolution"
+    enabled: true
+    params:
+      scale_factor: 2
+      checkpoint: null
+      device: "cuda"
+
+  prompt_ct:
+    type: "ct"
+    name: "PromptCT Enhancement"
+    enabled: true
+    params:
+      checkpoint: null
+      device: "cuda"

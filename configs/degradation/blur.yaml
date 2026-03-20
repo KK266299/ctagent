@@ -1,0 +1,16 @@
+# ============================================================================
+# 模块职责: 模糊退化配置 — CT 图像模糊类型与参数
+# 参考: JarvisIR (https://github.com/LYL1015/JarvisIR)
+# ============================================================================
+
+degradation:
+  type: "blur"
+  variants:
+    gaussian_blur:
+      enabled: true
+      kernel_size_range: [3, 15]
+      sigma_range: [0.5, 4.0]
+    motion_blur:
+      enabled: true
+      kernel_size_range: [5, 25]
+      angle_range: [0, 360]

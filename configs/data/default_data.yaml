@@ -1,0 +1,33 @@
+# ============================================================================
+# 模块职责: 默认数据集配置 — 定义数据集类型、split、预处理参数
+# 参考: MedQ-Bench (https://github.com/liujiyaoFDU/MedQ-Bench)
+#       LLaMA-Factory (https://github.com/hiyouga/LLaMA-Factory) dataset_info
+# ============================================================================
+
+dataset:
+  name: "ct_default"
+  modality: "CT"
+  # 支持的格式: dicom, nifti, png, numpy
+  format: "dicom"
+
+  splits:
+    train:
+      ratio: 0.7
+    val:
+      ratio: 0.15
+    test:
+      ratio: 0.15
+
+preprocessing:
+  # HU 窗宽窗位
+  window_center: 40
+  window_width: 400
+  # 归一化到 [0, 1]
+  normalize: true
+  # 目标尺寸 (H, W)
+  target_size: [512, 512]
+  # 数据增强 (训练时)
+  augmentation:
+    enabled: false
+    random_flip: true
+    random_rotate: false

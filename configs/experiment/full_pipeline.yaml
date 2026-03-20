@@ -1,0 +1,47 @@
+# ============================================================================
+# 模块职责: 完整 pipeline 实验配置 — 包含诊断与 judge
+# ============================================================================
+
+experiment:
+  name: "full_pipeline"
+  description: "Full pipeline: degradation → planning → restoration → diagnosis → judge/eval"
+
+data:
+  config: "configs/data/default_data.yaml"
+  paths: "configs/data/paths.yaml"
+
+degradation:
+  detection_method: "iqa_threshold"
+
+planner:
+  config: "configs/planner/rule_based.yaml"
+
+tools:
+  configs:
+    - "configs/tools/classical.yaml"
+    - "configs/tools/ct_specific.yaml"
+
+downstream:
+  enabled: true
+  task: "classification"  # classification | detection | segmentation
+
+judge:
+  enabled: true
+  criteria:
+    - "iqa_improvement"
+    - "diagnosis_consistency"
+
+eval:
+  metrics:
+    - "psnr"
+    - "ssim"
+    - "lpips"
+    - "fid"
+    - "downstream_accuracy"
+  save_results: true
+  generate_report: true
+
+runtime:
+  device: "cuda"
+  seed: 42
+  num_workers: 4
