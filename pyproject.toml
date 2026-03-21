@@ -35,7 +35,17 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src*"]
+include = [
+    "src*",
+    "llm*",
+    "pipeline*",
+    "executor*",
+    "judge*",
+    "memory*",
+    "exploration*",
+    "dataset*",
+    "downstream*",
+]
 
 [tool.ruff]
 line-length = 120

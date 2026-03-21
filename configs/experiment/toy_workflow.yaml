@@ -1,0 +1,36 @@
+# ============================================================================
+# Toy Workflow 默认配置 — 无真实数据的最小验证
+# ============================================================================
+
+experiment:
+  name: "toy_workflow"
+  description: "Toy phantom → degradation → assessment → plan → execute → judge → mock diagnosis"
+
+toy_data:
+  image_size: 256
+  num_cases: 3
+  degradation: "noise"
+  degradation_params:
+    sigma: 0.08
+  seed_start: 42
+
+planner:
+  type: "rule_based"
+  max_chain: 3
+
+judge:
+  quality:
+    psnr_threshold: 25.0
+    ssim_threshold: 0.7
+  safety:
+    ssim_floor: 0.5
+    max_mean_shift: 50.0
+
+diagnosis:
+  type: "mock"
+  brightness_threshold: 0.7
+  min_region_size: 10
+
+runtime:
+  seed: 42
+  log_level: "INFO"
