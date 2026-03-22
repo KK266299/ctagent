@@ -1,0 +1,33 @@
+# ============================================================================
+# Degraded 2D Slice Dataset 构建配置
+# Usage:
+#   PYTHONPATH=. python scripts/build_degraded_dataset.py --config configs/data/degradation.yaml
+# ============================================================================
+
+# 数据源
+input:
+  clean_manifest: "output/manifests/clean_manifest.jsonl"
+  max_slices: null           # 限制处理的 slice 数量 (null=全部)
+
+# 输出
+output:
+  degraded_dir: "output/degraded"
+  manifest_path: "output/manifests/degraded_manifest.jsonl"
+
+# 退化类型配置
+degradations:
+  - type: "noise"
+    severities: [1, 2, 3, 4, 5]
+    # params_override:       # 可选: 覆盖默认参数
+    #   1: {sigma: 0.01}
+
+  - type: "blur"
+    severities: [1, 2, 3]
+
+  - type: "downsample"
+    severities: [1, 2, 3]
+
+  - type: "artifact"
+    severities: [1, 2, 3]
+
+seed: 42

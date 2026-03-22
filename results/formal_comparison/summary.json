@@ -1,0 +1,164 @@
+{
+  "experiment_config": {
+    "num_cases": 20,
+    "max_iterations": 4,
+    "sigmas": [
+      0.03,
+      0.0363,
+      0.0426,
+      0.0489,
+      0.0553,
+      0.0616,
+      0.0679,
+      0.0742,
+      0.0805,
+      0.0868,
+      0.0932,
+      0.0995,
+      0.1058,
+      0.1121,
+      0.1184,
+      0.1247,
+      0.1311,
+      0.1374,
+      0.1437,
+      0.15
+    ],
+    "seed": 42,
+    "model": "deepseek/deepseek-chat-v3-0324",
+    "skip_real_api": false,
+    "elapsed_seconds": 522.5
+  },
+  "configs": {
+    "rule-sp": {
+      "name": "rule-sp",
+      "diagnosis_accuracy": 0.6,
+      "diagnosis_correct": 12,
+      "diagnosis_total": 20,
+      "quality_avg": 0.6194,
+      "quality_pass": 20,
+      "safety_avg": 0.5722,
+      "safety_pass": 9,
+      "aggregate_avg": 0.5465,
+      "avg_iterations": 1.0,
+      "replan_count": 0,
+      "tool_diversity": 1,
+      "unique_tools": [
+        "denoise_tv"
+      ],
+      "fallback_count": 0,
+      "skipped": false
+    },
+    "rule-cl": {
+      "name": "rule-cl",
+      "diagnosis_accuracy": 0.65,
+      "diagnosis_correct": 13,
+      "diagnosis_total": 20,
+      "quality_avg": 0.623,
+      "quality_pass": 20,
+      "safety_avg": 0.5737,
+      "safety_pass": 9,
+      "aggregate_avg": 0.5562,
+      "avg_iterations": 1.8,
+      "replan_count": 16,
+      "tool_diversity": 2,
+      "unique_tools": [
+        "denoise_nlm",
+        "denoise_tv"
+      ],
+      "fallback_count": 0,
+      "skipped": false
+    },
+    "api-mock": {
+      "name": "api-mock",
+      "diagnosis_accuracy": 0.65,
+      "diagnosis_correct": 13,
+      "diagnosis_total": 20,
+      "quality_avg": 0.6081,
+      "quality_pass": 20,
+      "safety_avg": 0.5833,
+      "safety_pass": 7,
+      "aggregate_avg": 0.5643,
+      "avg_iterations": 2.3,
+      "replan_count": 26,
+      "tool_diversity": 3,
+      "unique_tools": [
+        "denoise_bilateral",
+        "denoise_nlm",
+        "denoise_tv"
+      ],
+      "fallback_count": 0,
+      "skipped": false
+    },
+    "api-text": {
+      "name": "api-text",
+      "diagnosis_accuracy": 0.55,
+      "diagnosis_correct": 11,
+      "diagnosis_total": 20,
+      "quality_avg": 0.6034,
+      "quality_pass": 20,
+      "safety_avg": 0.5686,
+      "safety_pass": 8,
+      "aggregate_avg": 0.5329,
+      "avg_iterations": 2.65,
+      "replan_count": 33,
+      "tool_diversity": 4,
+      "unique_tools": [
+        "denoise_bilateral",
+        "denoise_nlm",
+        "denoise_tv",
+        "sharpen_usm"
+      ],
+      "fallback_count": 0,
+      "skipped": false
+    },
+    "api-vision": {
+      "name": "api-vision",
+      "diagnosis_accuracy": 0.6,
+      "diagnosis_correct": 12,
+      "diagnosis_total": 20,
+      "quality_avg": 0.6094,
+      "quality_pass": 20,
+      "safety_avg": 0.5823,
+      "safety_pass": 7,
+      "aggregate_avg": 0.5709,
+      "avg_iterations": 2.85,
+      "replan_count": 37,
+      "tool_diversity": 4,
+      "unique_tools": [
+        "denoise_bilateral",
+        "denoise_nlm",
+        "denoise_tv",
+        "sharpen_usm"
+      ],
+      "fallback_count": 0,
+      "skipped": false
+    }
+  },
+  "delta_analysis": {
+    "rule_sp_vs_rule_cl": {
+      "accuracy_delta": 0.05,
+      "quality_delta": 0.0037,
+      "safety_delta": 0.0015,
+      "aggregate_delta": 0.0098
+    },
+    "rule_cl_vs_api_vision": {
+      "accuracy_delta": -0.05,
+      "quality_delta": -0.0136,
+      "safety_delta": 0.0085,
+      "aggregate_delta": 0.0147
+    },
+    "rule_cl_vs_api_mock": {
+      "accuracy_delta": 0.0,
+      "quality_delta": -0.015,
+      "safety_delta": 0.0096,
+      "aggregate_delta": 0.0081
+    },
+    "api_text_vs_api_vision": {
+      "accuracy_delta": 0.05,
+      "quality_delta": 0.0061,
+      "safety_delta": 0.0136,
+      "aggregate_delta": 0.038
+    }
+  }
+}

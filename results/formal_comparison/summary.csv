@@ -1,0 +1,6 @@
+config,diagnosis_accuracy,quality_avg,quality_pass,safety_avg,safety_pass,aggregate_avg,avg_iterations,replan_count,tool_diversity,fallback_count,skipped
+rule-sp,0.6,0.6194,20,0.5722,9,0.5465,1.0,0,1,0,False
+rule-cl,0.65,0.623,20,0.5737,9,0.5562,1.8,16,2,0,False
+api-mock,0.65,0.6081,20,0.5833,7,0.5643,2.3,26,3,0,False
+api-text,0.55,0.6034,20,0.5686,8,0.5329,2.65,33,4,0,False
+api-vision,0.6,0.6094,20,0.5823,7,0.5709,2.85,37,4,0,False

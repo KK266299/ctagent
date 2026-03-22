@@ -37,7 +37,7 @@ class GaussianDenoise(BaseTool):
     def run(self, image: np.ndarray, **kwargs: Any) -> ToolResult:
         from scipy.ndimage import gaussian_filter
 
-        sigma = kwargs.get("sigma", 1.0)
+        sigma = float(kwargs.get("sigma", 1.0))
         denoised = gaussian_filter(image, sigma=sigma)
         return ToolResult(image=denoised.astype(np.float32), tool_name=self.name)
 
@@ -62,8 +62,8 @@ class BilateralDenoise(BaseTool):
     def run(self, image: np.ndarray, **kwargs: Any) -> ToolResult:
         from skimage.restoration import denoise_bilateral
 
-        sigma_color = kwargs.get("sigma_color", 0.05)
-        sigma_spatial = kwargs.get("sigma_spatial", 5)
+        sigma_color = float(kwargs.get("sigma_color", 0.05))
+        sigma_spatial = float(kwargs.get("sigma_spatial", 5))
         denoised = denoise_bilateral(
             image.astype(np.float64),
             sigma_color=sigma_color,
@@ -98,7 +98,7 @@ class TVDenoise(BaseTool):
     def run(self, image: np.ndarray, **kwargs: Any) -> ToolResult:
         from skimage.restoration import denoise_tv_chambolle
 
-        weight = kwargs.get("weight", 0.1)
+        weight = float(kwargs.get("weight", 0.1))
         denoised = denoise_tv_chambolle(image.astype(np.float64), weight=weight)
         return ToolResult(
             image=denoised.astype(np.float32),
@@ -129,9 +129,9 @@ class NLMDenoise(BaseTool):
         from skimage.restoration import denoise_nl_means, estimate_sigma
 
         sigma_est = float(estimate_sigma(image))
-        h = kwargs.get("h", max(0.01, 1.15 * sigma_est))
-        patch_size = kwargs.get("patch_size", 5)
-        patch_distance = kwargs.get("patch_distance", 6)
+        h = float(kwargs.get("h", max(0.01, 1.15 * sigma_est)))
+        patch_size = int(kwargs.get("patch_size", 5))
+        patch_distance = int(kwargs.get("patch_distance", 6))
 
         denoised = denoise_nl_means(
             image.astype(np.float64),
@@ -168,7 +168,7 @@ class WienerDenoise(BaseTool):
     def run(self, image: np.ndarray, **kwargs: Any) -> ToolResult:
         from scipy.signal import wiener
 
-        mysize = kwargs.get("mysize", 5)
+        mysize = int(kwargs.get("mysize", 5))
         denoised = wiener(image.astype(np.float64), mysize=mysize)
         denoised = np.clip(denoised, 0.0, 1.0)
         return ToolResult(

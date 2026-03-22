@@ -1,0 +1,27 @@
+# ============================================================================
+# DICOM → Clean 2D Slice Dataset 配置
+# Usage:
+#   PYTHONPATH=. python scripts/build_clean_dataset.py --config configs/data/dicom_dataset.yaml
+# ============================================================================
+
+# 数据源
+input:
+  root_dir: "/home/liuxinyao/data"
+  # 限制扫描的 patient 数量 (null=全部, 设小值可快速测试)
+  max_patients: null
+
+# Series 过滤
+filter:
+  min_slices: 10            # 至少 N 个切片的 series 才保留
+  description_contains: ""  # series description 包含的关键词 (空=不过滤)
+
+# 窗宽窗位 (null=使用 DICOM 头中的值)
+window:
+  center: null              # 如 40 (脑窗), 50 (腹窗)
+  width: null               # 如 80 (脑窗), 400 (腹窗)
+
+# 输出
+output:
+  clean_dir: "output/clean"
+  manifest_path: "output/manifests/clean_manifest.jsonl"
+  max_series: null           # 限制导出的 series 数量 (null=全部)

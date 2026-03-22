@@ -1,0 +1,56 @@
+# ============================================================================
+# 正式比较实验 — 全部配置集中于此
+# Usage:
+#   export OPENAI_API_KEY="sk-or-v1-你的key"
+#   PYTHONPATH=. python scripts/run_formal_comparison.py --config configs/experiment/formal_comparison.yaml
+#
+# 如果不想设环境变量，也可以在下面直接填 api_key（不推荐提交到 git）
+# ============================================================================
+
+# ---- LLM: text-only 模型 (api-text 使用) ----
+llm:
+  provider: "openai"                          # openai-compatible
+  model: "deepseek/deepseek-chat-v3-0324"     # 文本模型
+  base_url: "https://openrouter.ai/api/v1"    # OpenRouter 代理
+  api_key: "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"                   # 可选: 不填则读 OPENAI_API_KEY 环境变量
+  temperature: 0.1
+  max_tokens: 1024
+  timeout: 60
+
+# ---- Vision LLM: 图像模型 (api-vision 使用) ----
+# 必须选一个支持图像输入的模型
+# OpenRouter 上可用的 vision 模型举例:
+#   - qwen/qwen-2.5-vl-72b-instruct     (阿里, 中国区友好)
+#   - qwen/qwen3.5-35b-a3b              (阿里, VLM)
+#   - google/gemini-2.0-flash-001       (需非中国区域)
+#   - openai/gpt-4o                     (需非中国区域)
+vision_llm:
+  provider: "openai"
+  model: "qwen/qwen-2.5-vl-72b-instruct"
+  base_url: "https://openrouter.ai/api/v1"
+  api_key: "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"                   # 可选: 不填则读 OPENAI_API_KEY
+  temperature: 0.1
+  max_tokens: 1024
+  timeout: 60
+
+# ---- Pipeline ----
+pipeline:
+  max_iterations: 4
+
+# ---- Toy 数据 ----
+toy:
+  num_cases: 20
+  image_size: 256
+  seed: 42
+  sigma_range: [0.03, 0.15]
+
+# ---- 退化检测阈值 ----
+detector:
+  noise_thresholds:
+    mild: 0.02
+    moderate: 0.05
+    severe: 0.10
+
+# ---- 输出 ----
+output:
+  dir: "results/formal_comparison"
