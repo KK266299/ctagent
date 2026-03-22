@@ -22,6 +22,15 @@ class DegradationDetector:
         self.noise_thresholds = self.config.get(
             "noise_thresholds", {"mild": 15, "moderate": 30, "severe": 50}
         )
+        # 金属伪影检测阈值
+        self.metal_thresholds = self.config.get(
+            "metal_thresholds",
+            {
+                "hu_threshold": 3000,       # 金属区域 HU 阈值
+                "streak_intensity": 0.15,   # 条纹强度阈值
+                "metal_area_ratio": 0.001,  # 最小金属面积比
+            },
+        )
 
     def detect(self, image: np.ndarray) -> DegradationReport:
         """分析图像退化情况。
@@ -43,7 +52,16 @@ class DegradationDetector:
         elif noise_level > self.noise_thresholds["mild"]:
             report.degradations.append((DegradationType.NOISE, Severity.MILD))
 
-        # TODO: 添加更多退化检测 (blur, artifact, resolution)
+        # 金属伪影检测
+        metal_result = self._detect_metal_artifact(image)
+        report.iqa_scores["metal_area_ratio"] = metal_result["area_ratio"]
+        report.iqa_scores["streak_score"] = metal_result["streak_score"]
+        if metal_result["detected"]:
+            report.degradations.append(
+                (DegradationType.ARTIFACT_METAL, metal_result["severity"])
+            )
+
+        # TODO: 添加更多退化检测 (blur, resolution)
         return report
 
     def _estimate_noise(self, image: np.ndarray) -> float:
@@ -53,3 +71,52 @@ class DegradationDetector:
         laplacian = laplace(image.astype(np.float64))
         sigma = np.median(np.abs(laplacian)) * 1.4826 / np.sqrt(2)
         return float(sigma)
+
+    def _detect_metal_artifact(self, image: np.ndarray) -> dict[str, Any]:
+        """检测金属伪影。
+
+        通过以下特征判断:
+        1. 高亮区域（疑似金属）面积比
+        2. 从高亮区域辐射出的条纹模式强度
+
+        Returns:
+            包含 detected, severity, area_ratio, streak_score 的字典
+        """
+        img = image.astype(np.float64)
+        hu_thresh = self.metal_thresholds["hu_threshold"]
+        min_area = self.metal_thresholds["metal_area_ratio"]
+        streak_thresh = self.metal_thresholds["streak_intensity"]
+
+        # 1. 检测高亮区域（可能的金属）
+        metal_mask = img > hu_thresh
+        area_ratio = float(np.sum(metal_mask)) / max(img.size, 1)
+
+        # 2. 条纹检测：金属伪影在角度方向产生辐射状条纹
+        #    用 Laplacian 在非金属区域检测异常高频能量
+        from scipy.ndimage import laplace
+
+        non_metal = img.copy()
+        non_metal[metal_mask] = np.median(img[~metal_mask]) if np.any(~metal_mask) else 0
+        lap = laplace(non_metal)
+        # 条纹分数：非金属区域的 Laplacian 标准差（归一化）
+        img_range = np.ptp(img) if np.ptp(img) > 0 else 1.0
+        streak_score = float(np.std(lap)) / img_range
+
+        # 3. 判定
+        detected = area_ratio >= min_area and streak_score >= streak_thresh
+        if detected:
+            if area_ratio > 0.01 or streak_score > 0.5:
+                severity = Severity.SEVERE
+            elif area_ratio > 0.005 or streak_score > 0.3:
+                severity = Severity.MODERATE
+            else:
+                severity = Severity.MILD
+        else:
+            severity = Severity.MILD
+
+        return {
+            "detected": detected,
+            "severity": severity,
+            "area_ratio": area_ratio,
+            "streak_score": streak_score,
+        }
