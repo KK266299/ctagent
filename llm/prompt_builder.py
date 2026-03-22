@@ -29,9 +29,6 @@ reports and decide which restoration tools to apply, in what order.
 - Order tools from most critical to refinement
 - Avoid redundant or conflicting tools
 - Consider downstream diagnostic requirements
-- For metal artifacts: apply mar_rise FIRST, then follow with gentle denoising if needed.
-  Metal artifacts manifest as bright/dark streaks, cupping, and photon starvation shadows
-  caused by high-attenuation implants. Do NOT apply aggressive denoising before MAR.
 
 ## Output Format
 Respond with ONLY a JSON object:
@@ -181,31 +178,6 @@ TOOL_CATALOG: list[dict[str, Any]] = [
         "description": "CLAHE adaptive histogram equalization. WARNING: may hurt safety score.",
         "params": {"clip_limit": {"type": "float", "range": [0.005, 0.05], "default": 0.02}},
     },
-    {
-        "tool_name": "mar_rise",
-        "category": "mar",
-        "description": (
-            "Metal Artifact Reduction (MAR) for CT images with metal implants. "
-            "Uses deep learning to disentangle metal artifacts from underlying anatomy. "
-            "Effective for beam hardening streaks, photon starvation shadows, and cupping "
-            "artifacts caused by high-attenuation metal objects (e.g., titanium implants, "
-            "dental fillings, surgical clips). Should be applied BEFORE general denoising."
-        ),
-        "params": {
-            "metal_threshold": {
-                "type": "float",
-                "range": [0.5, 0.95],
-                "default": 0.8,
-                "description": "Threshold for metal segmentation in normalized image",
-            },
-            "use_li_prior": {
-                "type": "bool",
-                "range": [True, False],
-                "default": True,
-                "description": "Use Linear Interpolation (LI) prior as auxiliary input",
-            },
-        },
-    },
 ]
 
 GUIDED_SYSTEM_PROMPT = """\
@@ -222,23 +194,6 @@ considering quality score, safety score, and downstream diagnostic accuracy.
 - aggregate_score = min(quality, safety). Both must pass for overall PASS.
 - If safety < quality: the image was over-modified → use gentler params.
 - If quality < safety: denoising was insufficient → use stronger params or a different tool.
-
-## Metal Artifact Handling
-When metal artifacts are detected (artifact_metal degradation type):
-- Metal artifacts arise from beam hardening, photon starvation, and scatter caused by
-  high-attenuation metal objects (implants, dental fillings, surgical hardware).
-- Symptoms: bright/dark streaks radiating from metal, cupping artifacts, shadow zones
-  near metal boundaries, and elevated noise in metal-adjacent regions.
-- Apply mar_rise FIRST, before any denoising or sharpening tools. MAR must operate
-  on the artifact-corrupted image directly to correctly identify metal regions.
-- After MAR, residual noise may remain — follow up with a gentle denoiser (e.g.,
-  denoise_bilateral or denoise_nlm with conservative params).
-- Do NOT use aggressive denoising before MAR, as it may blur metal boundaries and
-  degrade the metal segmentation step.
-- metal_threshold param: higher values (0.85-0.95) for clear metal objects, lower
-  values (0.5-0.7) for subtle or partial-volume metal regions.
-- use_li_prior=True is recommended for most cases; set to False only if linear
-  interpolation introduces new artifacts (e.g., near bone-metal interfaces).
 
 ## Decision Types
 - "retry": select tool(s) + params and re-execute. NEVER repeat a previously failed plan.
