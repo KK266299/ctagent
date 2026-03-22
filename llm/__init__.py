@@ -7,13 +7,19 @@
 #       LLaMA-Factory — model/API abstraction layer
 # ============================================================================
 
-from llm.api_client import BaseLLMClient, LLMResponse
+from llm.api_client import BaseLLMClient, LLMConfig, LLMResponse, create_client
 from llm.planner_caller import PlannerCaller
 from llm.diagnosis_caller import DiagnosisCaller
+from llm.guided_caller import CallRecord, GuidedCaller, GuidedPlanRequest
 
 __all__ = [
     "BaseLLMClient",
+    "LLMConfig",
     "LLMResponse",
+    "create_client",
     "PlannerCaller",
     "DiagnosisCaller",
+    "CallRecord",
+    "GuidedCaller",
+    "GuidedPlanRequest",
 ]

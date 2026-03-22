@@ -9,7 +9,27 @@
 # ============================================================================
 
 from pipeline.types import PipelineState
+from pipeline.single_pass import SinglePassPipeline, SinglePassResult
+from pipeline.agent_loop import ClosedLoopPipeline, ClosedLoopResult
+from pipeline.replan import (
+    ReplanDecision,
+    RuleBasedReplanner,
+    ScoreAwareReplanner,
+    OLD_STRATEGIES,
+    EXPANDED_STRATEGIES,
+)
+from pipeline.api_guided_planner import APIGuidedPlanner
 
 __all__ = [
     "PipelineState",
+    "SinglePassPipeline",
+    "SinglePassResult",
+    "ClosedLoopPipeline",
+    "ClosedLoopResult",
+    "ReplanDecision",
+    "RuleBasedReplanner",
+    "ScoreAwareReplanner",
+    "OLD_STRATEGIES",
+    "EXPANDED_STRATEGIES",
+    "APIGuidedPlanner",
 ]

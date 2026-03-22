@@ -34,16 +34,25 @@ class RuleBasedPlanner(BasePlanner):
         self.max_chain = max_chain
 
     def plan(self, report: DegradationReport, **kwargs: Any) -> Plan:
+        """规则条目支持两种格式:
+        - str:                  "denoise_gaussian"  (无参数)
+        - tuple[str, dict]:     ("denoise_bilateral", {"sigma_color": 0.03})
+        """
         steps: list[ToolCall] = []
         reasons: list[str] = []
 
         for deg_type, severity in report.degradations:
-            tool_names = self.rules.get((deg_type, severity), [])
-            for t in tool_names:
+            tool_entries = self.rules.get((deg_type, severity), [])
+            for entry in tool_entries:
                 if len(steps) >= self.max_chain:
                     break
-                steps.append(ToolCall(tool_name=t))
-                reasons.append(f"{deg_type.value}({severity.value}) -> {t}")
+                if isinstance(entry, tuple):
+                    name, params = entry
+                    steps.append(ToolCall(tool_name=name, params=params))
+                else:
+                    name = entry
+                    steps.append(ToolCall(tool_name=name))
+                reasons.append(f"{deg_type.value}({severity.value}) -> {name}")
 
         return Plan(
             steps=steps,

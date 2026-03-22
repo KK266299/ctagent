@@ -1,0 +1,36 @@
+# API-Guided Planner 闭环实验配置
+# Usage:
+#   PYTHONPATH=. python scripts/run_api_guided_demo.py --config configs/experiment/api_guided.yaml
+
+planner:
+  type: "api_guided"
+  # mode: "full"          # plan() + replan() 都走 API
+  # mode: "replan_only"   # plan() 走 rule-based, replan() 走 API
+  mode: "full"
+
+llm:
+  provider: "openai"        # "openai" | "anthropic" | "local"
+  model: "gpt-4o"           # gpt-4o / claude-sonnet-4-20250514 / local model name
+  # base_url: null          # 本地部署时填 http://localhost:8000/v1
+  temperature: 0.1
+  max_tokens: 1024
+  timeout: 30
+
+fallback:
+  planner: "rule_based"     # plan() 失败时用的 fallback
+  replanner: "score_aware"  # replan() 失败时用的 fallback
+
+pipeline:
+  max_iterations: 4
+
+toy:
+  num_cases: 10
+  image_size: 256
+  seed: 42
+  sigma_range: [0.03, 0.15]
+
+detector:
+  noise_thresholds:
+    mild: 0.02
+    moderate: 0.05
+    severe: 0.10
