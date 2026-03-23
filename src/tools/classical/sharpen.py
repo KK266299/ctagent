@@ -27,7 +27,13 @@ class UnsharpMask(BaseTool):
     def run(self, image: np.ndarray, **kwargs: Any) -> ToolResult:
         from skimage.filters import unsharp_mask
 
-        radius = float(kwargs.get("radius", 2.0))
-        amount = float(kwargs.get("amount", 1.5))
+        try:
+            radius = float(kwargs.get("radius", 2.0))
+        except (TypeError, ValueError):
+            radius = 2.0
+        try:
+            amount = float(kwargs.get("amount", 1.5))
+        except (TypeError, ValueError):
+            amount = 1.5
         sharpened = unsharp_mask(image, radius=radius, amount=amount)
         return ToolResult(image=sharpened, tool_name=self.name)

@@ -1,0 +1,19 @@
+[
+  {
+    "case_id": "CQ500CT10",
+    "type": "clean_correct_degraded_wrong",
+    "clean_score": 10,
+    "degraded_score": 8,
+    "diff": 2
+  },
+  {
+    "case_id": "CQ500CT0",
+    "type": "high_confidence_shift",
+    "max_confidence_diff": 1.0
+  },
+  {
+    "case_id": "CQ500CT10",
+    "type": "high_confidence_shift",
+    "max_confidence_diff": 0.95
+  }
+]

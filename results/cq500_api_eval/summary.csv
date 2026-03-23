@@ -1,0 +1,3 @@
+input_type,mean_accuracy,macro_f1,micro_f1,mean_auroc,n_valid,n_failed,mean_latency_sec
+clean,0.7333,0.1,0.3333,,3,0,14.1
+degraded,0.7667,0.0,0.0,,3,0,10.14

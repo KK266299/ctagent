@@ -92,6 +92,75 @@ Always respond in the following JSON format:
 }}
 """
 
+# ---- CQ500 Diagnosis Classification Prompt ----
+
+CQ500_DIAGNOSIS_SYSTEM_PROMPT = """\
+You are an expert neuroradiologist. You will be shown axial slice(s) from a \
+non-contrast head CT scan. Your task is to classify the presence or absence \
+of the following findings.
+
+## Target Labels (binary: 0 = absent, 1 = present)
+- ICH: Intracranial Hemorrhage (any type)
+- IPH: Intraparenchymal Hemorrhage
+- IVH: Intraventricular Hemorrhage
+- SDH: Subdural Hemorrhage
+- EDH: Epidural Hemorrhage
+- SAH: Subarachnoid Hemorrhage
+- Fracture: Any skull fracture
+- CalvarialFracture: Calvarial fracture specifically
+- MassEffect: Mass effect present
+- MidlineShift: Midline shift present
+
+## Important
+- Examine each slice carefully for ALL findings above.
+- ICH should be 1 if ANY hemorrhage subtype is present.
+- Provide a confidence score (0.0 to 1.0) for each label.
+
+## Output Format
+Respond with ONLY a valid JSON object, no extra text:
+{{
+  "predictions": {{
+    "ICH": 0 or 1,
+    "IPH": 0 or 1,
+    "IVH": 0 or 1,
+    "SDH": 0 or 1,
+    "EDH": 0 or 1,
+    "SAH": 0 or 1,
+    "Fracture": 0 or 1,
+    "CalvarialFracture": 0 or 1,
+    "MassEffect": 0 or 1,
+    "MidlineShift": 0 or 1
+  }},
+  "confidence": {{
+    "ICH": <float 0-1>,
+    "IPH": <float 0-1>,
+    "IVH": <float 0-1>,
+    "SDH": <float 0-1>,
+    "EDH": <float 0-1>,
+    "SAH": <float 0-1>,
+    "Fracture": <float 0-1>,
+    "CalvarialFracture": <float 0-1>,
+    "MassEffect": <float 0-1>,
+    "MidlineShift": <float 0-1>
+  }},
+  "reasoning": "<brief clinical reasoning>"
+}}
+"""
+
+
+def build_cq500_user_prompt(n_slices: int) -> str:
+    """构建 CQ500 诊断分类的 user prompt 文本部分。"""
+    if n_slices == 1:
+        return (
+            "Above is 1 axial slice from a non-contrast head CT scan. "
+            "Classify the presence of each finding listed in the system prompt."
+        )
+    return (
+        f"Above are {n_slices} axial slices from the same non-contrast head CT scan. "
+        "Examine all slices together and classify the presence of each finding "
+        "listed in the system prompt."
+    )
+
 
 def build_planning_system_prompt(tool_descriptions: dict[str, str]) -> str:
     """构建规划 system prompt。"""

@@ -1,0 +1,50 @@
+# ============================================================================
+# MAR 仿真数据集构建配置 — CQ500 全量处理
+# 输出到 /home/liuxinyao/data/cq500_processed
+# ============================================================================
+
+input:
+  source_type: "cq500"
+  ct_image_dir: "/home/liuxinyao/data/cq500"
+  mat_dir: "data/mar_physics"
+  metal_masks_path: "data/mar_physics/SampleMasks.mat"
+
+cq500:
+  series_keywords: ["THIN", "Plain"]
+  min_slices: 20
+  # stride=5: 每 5 个 slice 取 1 个 (平衡数据量与速度)
+  slice_stride: 5
+  max_patients: null
+
+output:
+  data_dir: "/home/liuxinyao/data/cq500_processed"
+  # minimal=true: 只保存 GT image + ma_CT（跳过 LI/BHC 校正，节省时间和空间）
+  minimal: true
+
+geometry:
+  image_size: 416
+  num_angles: 640
+  num_detectors: 641
+  source_obj_dist_pixels: 1075.0
+  orig_pixels: 512
+  orig_pixel_size_cm: 0.03
+  filter_type: "Ram-Lak"
+  frequency_scaling: 1.0
+  impl: "astra_cuda"
+
+physics:
+  kVp: 120
+  kev: 70
+  energy_min: 20
+  energy_max: 120
+  photon_num: 20000000.0
+  scatter_photon: 20
+  mu_water_70kev: 0.192
+  thresh_water_hu: 100.0
+  thresh_bone_hu: 1500.0
+  material_id: 0
+
+batch:
+  max_images: null
+  max_masks_per_image: 10
+  seed: 42

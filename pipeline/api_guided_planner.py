@@ -134,7 +134,12 @@ class APIGuidedPlanner(BasePlanner, BaseReplanner):
                 )
                 decision = self.caller.call(request)
                 self._capture_record()
-                logger.info("API plan(): decision=%s reason=%s", decision.decision, decision.reason)
+                logger.info(
+                    "API plan(): decision=%s tools=%s reason=%s",
+                    decision.decision,
+                    [s.tool_name for s in decision.plan.steps] if decision.plan and decision.plan.steps else [],
+                    decision.reason,
+                )
 
                 if decision.decision == "retry" and decision.plan:
                     return decision.plan
@@ -185,8 +190,11 @@ class APIGuidedPlanner(BasePlanner, BaseReplanner):
             decision = self.caller.call(request)
             self._capture_record()
             logger.info(
-                "API replan() iter#%d: decision=%s reason=%s",
-                feedback.iteration, decision.decision, decision.reason,
+                "API replan() iter#%d: decision=%s tools=%s reason=%s",
+                feedback.iteration,
+                decision.decision,
+                [s.tool_name for s in decision.plan.steps] if decision.plan and decision.plan.steps else [],
+                decision.reason,
             )
             return self._guided_to_replan(decision)
 

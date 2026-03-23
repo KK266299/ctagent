@@ -34,6 +34,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("formal_comparison")
 logger.setLevel(logging.INFO)
+logging.getLogger("llm.guided_caller").setLevel(logging.INFO)
+logging.getLogger("pipeline.api_guided_planner").setLevel(logging.INFO)
 
 
 # ---------------------------------------------------------------------------
@@ -482,6 +484,7 @@ def main() -> None:
 
     # 从 YAML 加载配置 (若提供)
     yaml_vision_llm: dict[str, Any] | None = None
+    yaml_llm_api_key: str | None = None
     if args.config:
         import yaml
         with open(args.config) as f:
@@ -495,6 +498,10 @@ def main() -> None:
         args.base_url = llm_cfg.get("base_url", args.base_url)
         args.max_iter = cfg.get("pipeline", {}).get("max_iterations", args.max_iter)
         args.output_dir = cfg.get("output", {}).get("dir", args.output_dir)
+        ak = llm_cfg.get("api_key")
+        if ak:
+            yaml_llm_api_key = str(ak)
+            os.environ.setdefault("OPENAI_API_KEY", yaml_llm_api_key)
         if "vision_llm" in cfg:
             v = cfg["vision_llm"]
             args.vision_model = v.get("model", args.vision_model)
@@ -505,10 +512,11 @@ def main() -> None:
                 "temperature": v.get("temperature", 0.1),
                 "max_tokens": v.get("max_tokens", 1024),
             }
-            if v.get("api_key"):
-                yaml_vision_llm["api_key"] = v["api_key"]
-        if llm_cfg.get("api_key"):
-            os.environ.setdefault("OPENAI_API_KEY", llm_cfg["api_key"])
+            vak = v.get("api_key")
+            if vak:
+                yaml_vision_llm["api_key"] = str(vak)
+            elif yaml_llm_api_key:
+                yaml_vision_llm["api_key"] = yaml_llm_api_key
 
     api_key = os.environ.get("OPENAI_API_KEY", "")
     skip_real = args.skip_real_api or not api_key
@@ -547,6 +555,10 @@ def main() -> None:
         "temperature": 0.1,
         "max_tokens": 1024,
     }
+    _api_key = yaml_llm_api_key or os.environ.get("OPENAI_API_KEY")
+    if _api_key:
+        llm_kwargs["api_key"] = _api_key
+
     vision_llm_kwargs: dict[str, Any] | None = yaml_vision_llm if args.config else None
     if vision_llm_kwargs is None and args.vision_model and args.vision_model != args.model:
         vision_llm_kwargs = {
@@ -556,6 +568,10 @@ def main() -> None:
             "temperature": 0.1,
             "max_tokens": 1024,
         }
+        if _api_key:
+            vision_llm_kwargs["api_key"] = _api_key
+    elif vision_llm_kwargs is not None and "api_key" not in vision_llm_kwargs and _api_key:
+        vision_llm_kwargs["api_key"] = _api_key
 
     pipelines = build_pipelines(args.max_iter, skip_real, llm_kwargs, vision_llm_kwargs)
 

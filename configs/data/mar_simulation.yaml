@@ -1,0 +1,62 @@
+# ============================================================================
+# MAR 仿真数据集构建配置
+# 参考: ADN — config/dataset.yaml
+# ============================================================================
+
+# --- 输入路径 ---
+input:
+  # DeepLesion 16-bit PNG 图像目录 (需自行下载 DeepLesion 数据集)
+  ct_image_dir: "/path/to/DeepLesion/Images_png"
+  # 物理参数 .mat 文件目录 (已下载到项目内)
+  mat_dir: "data/mar_physics"
+  # 金属掩模 .mat 文件路径
+  metal_masks_path: "data/mar_physics/SampleMasks.mat"
+
+# --- 输出路径 ---
+output:
+  # HDF5 输出根目录
+  data_dir: "output/mar_dataset"
+
+# --- CT 几何参数 ---
+geometry:
+  image_size: 416
+  num_angles: 640
+  num_detectors: 641
+  source_obj_dist_pixels: 1075.0
+  orig_pixels: 512
+  orig_pixel_size_cm: 0.03
+  filter_type: "Ram-Lak"
+  frequency_scaling: 1.0
+  # "astra_cuda" (GPU) 或 "astra_cpu" (CPU) 或 "skimage" (纯Python)
+  impl: "astra_cuda"
+
+# --- 物理仿真参数 ---
+physics:
+  kVp: 120
+  kev: 70
+  energy_min: 20
+  energy_max: 120
+  photon_num: 20000000.0
+  scatter_photon: 20
+  mu_water_70kev: 0.192
+  thresh_water_hu: 100.0
+  thresh_bone_hu: 1500.0
+  material_id: 0  # 0=Ti, 1=Fe, 2=Cu, 3=Au
+
+# --- 批量处理 ---
+batch:
+  # 最大处理图像数 (null = 全部)
+  max_images: null
+  # 每张图最多使用掩模数 (null = 全部)
+  max_masks_per_image: null
+  # 随机种子
+  seed: 42
+  # 工作线程数 (仿真本身是 CPU/GPU 混合, 此参数预留)
+  num_workers: 1
+
+# --- 数据集划分 ---
+split:
+  # train/val/test 比例
+  train_ratio: 0.8
+  val_ratio: 0.1
+  test_ratio: 0.1

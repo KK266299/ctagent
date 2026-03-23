@@ -1,0 +1,57 @@
+# ============================================================================
+# MAR 仿真数据集构建配置 — CQ500 DICOM 输入
+# 适配理由: 使用本地 CQ500 头部 CT DICOM 数据集替代 DeepLesion PNG
+# ============================================================================
+
+# --- 输入路径 ---
+input:
+  source_type: "cq500"  # "cq500" / "dicom" / "deeplesion"
+  ct_image_dir: "/home/liuxinyao/data/cq500"
+  mat_dir: "data/mar_physics"
+  metal_masks_path: "data/mar_physics/SampleMasks.mat"
+
+# --- CQ500 专用配置 ---
+cq500:
+  # 仅选包含这些关键词的 series (null = 全部 series)
+  series_keywords: ["THIN", "Plain"]
+  # 每个 series 最少切片数 (过滤短序列)
+  min_slices: 20
+  # 切片间隔 (1=全部, 5=每5个取1个, 降低数据量)
+  slice_stride: 5
+  # 最多处理多少个 patient (null = 全部)
+  max_patients: null
+
+# --- 输出路径 ---
+output:
+  data_dir: "output/mar_cq500"
+
+# --- CT 几何参数 ---
+geometry:
+  image_size: 416
+  num_angles: 640
+  num_detectors: 641
+  source_obj_dist_pixels: 1075.0
+  orig_pixels: 512
+  orig_pixel_size_cm: 0.03
+  filter_type: "Ram-Lak"
+  frequency_scaling: 1.0
+  impl: "astra_cuda"
+
+# --- 物理仿真参数 ---
+physics:
+  kVp: 120
+  kev: 70
+  energy_min: 20
+  energy_max: 120
+  photon_num: 20000000.0
+  scatter_photon: 20
+  mu_water_70kev: 0.192
+  thresh_water_hu: 100.0
+  thresh_bone_hu: 1500.0
+  material_id: 0  # 0=Ti
+
+# --- 批量处理 ---
+batch:
+  max_images: null
+  max_masks_per_image: 2  # 先用 2 个掩模加速测试
+  seed: 42

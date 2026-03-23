@@ -129,11 +129,17 @@ class GuidedCaller:
             "GuidedCaller iter#%d: %d chars, model=%s, usage=%s",
             request.iteration, len(response.text), response.model, response.usage,
         )
+        logger.info("─── LLM raw response ───\n%s\n─── end raw response ───", response.text)
 
         decision = parse_guided_decision(response.text)
 
         tools = [s.tool_name for s in decision.plan.steps] if decision.plan and decision.plan.steps else []
         params = [s.params for s in decision.plan.steps] if decision.plan and decision.plan.steps else []
+        logger.info(
+            "─── Parsed decision ─── decision=%s | tools=%s | params=%s | reason=%s",
+            decision.decision, tools, params, decision.reason,
+        )
+
         self.last_record = CallRecord(
             iteration=request.iteration,
             has_image=has_image,

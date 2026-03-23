@@ -27,6 +27,9 @@ class CLAHE(BaseTool):
     def run(self, image: np.ndarray, **kwargs: Any) -> ToolResult:
         from skimage.exposure import equalize_adapthist
 
-        clip_limit = float(kwargs.get("clip_limit", 0.02))
+        try:
+            clip_limit = float(kwargs.get("clip_limit", 0.02))
+        except (TypeError, ValueError):
+            clip_limit = 0.02
         enhanced = equalize_adapthist(image, clip_limit=clip_limit)
         return ToolResult(image=enhanced.astype(np.float32), tool_name=self.name)

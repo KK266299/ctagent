@@ -18,6 +18,20 @@ from src.tools.base import BaseTool, ToolResult
 from src.tools.registry import ToolRegistry
 
 
+def _safe_float(val: Any, default: float) -> float:
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return default
+
+
+def _safe_int(val: Any, default: int) -> int:
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return default
+
+
 @ToolRegistry.register
 class GaussianDenoise(BaseTool):
     """Gaussian 滤波去噪 — 最快但最模糊边缘。
@@ -37,7 +51,7 @@ class GaussianDenoise(BaseTool):
     def run(self, image: np.ndarray, **kwargs: Any) -> ToolResult:
         from scipy.ndimage import gaussian_filter
 
-        sigma = float(kwargs.get("sigma", 1.0))
+        sigma = _safe_float(kwargs.get("sigma", 1.0), 1.0)
         denoised = gaussian_filter(image, sigma=sigma)
         return ToolResult(image=denoised.astype(np.float32), tool_name=self.name)
 
@@ -62,8 +76,8 @@ class BilateralDenoise(BaseTool):
     def run(self, image: np.ndarray, **kwargs: Any) -> ToolResult:
         from skimage.restoration import denoise_bilateral
 
-        sigma_color = float(kwargs.get("sigma_color", 0.05))
-        sigma_spatial = float(kwargs.get("sigma_spatial", 5))
+        sigma_color = _safe_float(kwargs.get("sigma_color", 0.05), 0.05)
+        sigma_spatial = _safe_float(kwargs.get("sigma_spatial", 5), 5.0)
         denoised = denoise_bilateral(
             image.astype(np.float64),
             sigma_color=sigma_color,
@@ -98,7 +112,7 @@ class TVDenoise(BaseTool):
     def run(self, image: np.ndarray, **kwargs: Any) -> ToolResult:
         from skimage.restoration import denoise_tv_chambolle
 
-        weight = float(kwargs.get("weight", 0.1))
+        weight = _safe_float(kwargs.get("weight", 0.1), 0.1)
         denoised = denoise_tv_chambolle(image.astype(np.float64), weight=weight)
         return ToolResult(
             image=denoised.astype(np.float32),
@@ -129,9 +143,10 @@ class NLMDenoise(BaseTool):
         from skimage.restoration import denoise_nl_means, estimate_sigma
 
         sigma_est = float(estimate_sigma(image))
-        h = float(kwargs.get("h", max(0.01, 1.15 * sigma_est)))
-        patch_size = int(kwargs.get("patch_size", 5))
-        patch_distance = int(kwargs.get("patch_distance", 6))
+        h_default = max(0.01, 1.15 * sigma_est)
+        h = _safe_float(kwargs.get("h", h_default), h_default)
+        patch_size = _safe_int(kwargs.get("patch_size", 5), 5)
+        patch_distance = _safe_int(kwargs.get("patch_distance", 6), 6)
 
         denoised = denoise_nl_means(
             image.astype(np.float64),
@@ -168,7 +183,7 @@ class WienerDenoise(BaseTool):
     def run(self, image: np.ndarray, **kwargs: Any) -> ToolResult:
         from scipy.signal import wiener
 
-        mysize = int(kwargs.get("mysize", 5))
+        mysize = _safe_int(kwargs.get("mysize", 5), 5)
         denoised = wiener(image.astype(np.float64), mysize=mysize)
         denoised = np.clip(denoised, 0.0, 1.0)
         return ToolResult(

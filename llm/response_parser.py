@@ -145,6 +145,65 @@ def parse_guided_decision(
 
 
 # ---------------------------------------------------------------------------
+# CQ500 诊断分类结果解析
+# ---------------------------------------------------------------------------
+
+CQ500_LABEL_NAMES = [
+    "ICH", "IPH", "IVH", "SDH", "EDH", "SAH",
+    "Fracture", "CalvarialFracture", "MassEffect", "MidlineShift",
+]
+
+
+@dataclass
+class CQ500DiagnosisResult:
+    """CQ500 诊断分类解析结果。"""
+    predictions: dict[str, int] = field(default_factory=dict)
+    confidence: dict[str, float] = field(default_factory=dict)
+    reasoning: str = ""
+    parse_success: bool = True
+    raw: dict[str, Any] | None = None
+
+
+def parse_cq500_diagnosis(raw_text: str) -> CQ500DiagnosisResult:
+    """从 LLM 响应解析 CQ500 多标签分类结果。"""
+    data = _extract_json_object(raw_text)
+    if data is None:
+        logger.warning("Cannot parse CQ500 diagnosis response as JSON")
+        return CQ500DiagnosisResult(
+            predictions={lbl: 0 for lbl in CQ500_LABEL_NAMES},
+            confidence={lbl: 0.0 for lbl in CQ500_LABEL_NAMES},
+            parse_success=False,
+        )
+
+    preds_raw = data.get("predictions", data)
+    conf_raw = data.get("confidence", {})
+    reasoning = data.get("reasoning", "")
+
+    predictions = {}
+    confidence = {}
+    for lbl in CQ500_LABEL_NAMES:
+        val = preds_raw.get(lbl, 0)
+        try:
+            predictions[lbl] = 1 if int(val) >= 1 else 0
+        except (TypeError, ValueError):
+            predictions[lbl] = 1 if str(val).lower() in ("1", "true", "yes") else 0
+
+        c_val = conf_raw.get(lbl, 0.5)
+        try:
+            confidence[lbl] = float(c_val)
+        except (TypeError, ValueError):
+            confidence[lbl] = 0.5
+
+    return CQ500DiagnosisResult(
+        predictions=predictions,
+        confidence=confidence,
+        reasoning=reasoning,
+        parse_success=True,
+        raw=data,
+    )
+
+
+# ---------------------------------------------------------------------------
 # 共享工具
 # ---------------------------------------------------------------------------
 
