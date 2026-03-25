@@ -21,6 +21,26 @@ logging.basicConfig(
 logger = logging.getLogger("cq500_api_eval")
 
 
+def _setup_restore_fn(cfg: dict) -> None:
+    """Initialize DnCNN restoration pipeline and register as restore_fn."""
+    import numpy as np
+
+    import src.tools.classical.clip  # noqa: F401
+    import src.tools.learned.dncnn_tool  # noqa: F401
+    from src.tools.registry import ToolRegistry
+
+    clip_tool = ToolRegistry.create("clip_extreme")
+    dncnn_tool = ToolRegistry.create("denoise_dncnn")
+
+    def restore_fn(mu_image: np.ndarray) -> np.ndarray:
+        result = clip_tool.run(mu_image)
+        result = dncnn_tool.run(result.image)
+        return result.image
+
+    from eval.cq500_api_eval import set_restore_fn
+    set_restore_fn(restore_fn)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="CQ500 closed-API diagnosis eval")
     parser.add_argument("--config", required=True, help="YAML config path")
@@ -34,6 +54,8 @@ def main() -> None:
                         help="Override LLM base URL (e.g., https://api.openai.com/v1)")
     parser.add_argument("--temperature", type=float, default=None,
                         help="Override LLM temperature")
+    parser.add_argument("--append", type=str, default=None,
+                        help="Append results to existing predictions.jsonl and re-aggregate")
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -46,6 +68,7 @@ def main() -> None:
         aggregate_results,
         select_case_studies,
         save_outputs,
+        CaseResult,
     )
     from llm.api_client import LLMConfig, create_client
 
@@ -132,6 +155,12 @@ def main() -> None:
     input_types = args.input_types or cfg.get("eval", {}).get("input_types", ["clean", "degraded"])
     logger.info("Input types: %s", input_types)
 
+    # --- 如果包含 restored，初始化修复管线 ---
+    if "restored" in input_types:
+        from eval.cq500_api_eval import set_restore_fn
+        _setup_restore_fn(cfg)
+        logger.info("Restoration pipeline initialized for 'restored' input type")
+
     # --- 运行评测 ---
     windowing = cfg.get("windowing", {})
     rate_limit = cfg.get("eval", {}).get("rate_limit_sec", 1.0)
@@ -147,11 +176,49 @@ def main() -> None:
         rate_limit_sec=rate_limit,
     )
 
+    # --- 如果追加模式，合并已有结果 ---
+    output_dir = cfg.get("output", {}).get("dir", "results/cq500_api_eval")
+
+    if args.append:
+        from pathlib import Path
+        import json as _json
+        existing_path = Path(args.append)
+        if existing_path.exists():
+            from llm.response_parser import CQ500DiagnosisResult
+            existing_results = []
+            with open(existing_path) as _f:
+                for line in _f:
+                    rec = _json.loads(line)
+                    cr = CaseResult(
+                        case_id=rec["case_id"],
+                        input_type=rec["input_type"],
+                        gt_labels=rec["gt"],
+                        pred=CQ500DiagnosisResult(
+                            predictions=rec.get("predictions", {}),
+                            confidence=rec.get("confidence", {}),
+                            reasoning=rec.get("reasoning", ""),
+                            parse_success=rec.get("parse_success", True),
+                        ),
+                        raw_prompt_text=rec.get("raw_prompt", ""),
+                        raw_response_text=rec.get("raw_response", ""),
+                        api_latency_sec=rec.get("api_latency_sec", 0),
+                        error=rec.get("error"),
+                        usage=rec.get("usage", {}),
+                    )
+                    existing_results.append(cr)
+            logger.info("Loaded %d existing results from %s", len(existing_results), existing_path)
+            results = existing_results + results
+            all_types = list(dict.fromkeys(r.input_type for r in results))
+        else:
+            logger.warning("Append file not found: %s", existing_path)
+            all_types = input_types
+    else:
+        all_types = input_types
+
     # --- 汇总与输出 ---
-    summary = aggregate_results(results, input_types)
+    summary = aggregate_results(results, all_types)
     case_studies = select_case_studies(results)
 
-    output_dir = cfg.get("output", {}).get("dir", "results/cq500_api_eval")
     save_outputs(results, summary, case_studies, output_dir)
 
     # --- 打印摘要 ---

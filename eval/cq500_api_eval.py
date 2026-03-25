@@ -49,6 +49,18 @@ def mu_to_windowed_uint8(
     return (np.clip(normalized, 0, 1) * 255).astype(np.uint8)
 
 
+_restore_fn = None
+
+
+def set_restore_fn(fn: Any) -> None:
+    """Set the restoration function for 'restored' mode.
+
+    fn(mu_image: np.ndarray) -> np.ndarray
+    """
+    global _restore_fn
+    _restore_fn = fn
+
+
 def encode_slices_b64(
     slice_entries: list[SliceEntry],
     mode: str,
@@ -59,7 +71,9 @@ def encode_slices_b64(
     """将多个 slice 编码为 base64 PNG 列表。
 
     Args:
-        mode: "clean" → gt.h5["image"], "degraded" → {idx}.h5["ma_CT"]
+        mode: "clean" → gt.h5["image"],
+              "degraded" → {idx}.h5["ma_CT"],
+              "restored" → degraded + restoration pipeline
     """
     import base64
     import io
@@ -71,6 +85,13 @@ def encode_slices_b64(
             mu = load_h5_image(se.gt_h5, "image")
         elif mode == "degraded":
             mu = load_h5_image(se.degraded_h5, "ma_CT")
+        elif mode == "restored":
+            mu = load_h5_image(se.degraded_h5, "ma_CT")
+            if _restore_fn is not None:
+                mu = _restore_fn(mu)
+            else:
+                logger.warning("No restore_fn set, falling back to clip only")
+                mu = np.clip(mu, 0.0, 0.6)
         else:
             raise ValueError(f"Unknown mode: {mode}")
 
