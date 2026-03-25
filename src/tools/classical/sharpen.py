@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from src.tools.base import BaseTool, ToolResult
+from src.tools.base import BaseTool, ToolMeta, ToolResult
 from src.tools.registry import ToolRegistry
 
 
@@ -23,6 +23,19 @@ class UnsharpMask(BaseTool):
     @property
     def description(self) -> str:
         return "Unsharp mask sharpening for mildly blurred images."
+
+    @property
+    def meta(self) -> ToolMeta:
+        return ToolMeta(
+            category="sharpen",
+            suitable_for=["blur", "low_resolution"],
+            expected_cost="cheap",
+            expected_safety="moderate",
+            params_schema={
+                "radius": {"type": "float", "default": 2.0, "range": [0.5, 5.0]},
+                "amount": {"type": "float", "default": 1.5, "range": [0.5, 5.0]},
+            },
+        )
 
     def run(self, image: np.ndarray, **kwargs: Any) -> ToolResult:
         from skimage.filters import unsharp_mask

@@ -49,20 +49,27 @@ class PerceptionTool:
         image: np.ndarray,
         reference: np.ndarray | None = None,
         metrics: list[str] | None = None,
+        data_range: float | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
-        """计算 IQA 指标，返回结构化结果。"""
+        """计算 IQA 指标，返回结构化结果。
+
+        Args:
+            data_range: 用于 FR 指标计算的动态范围。
+                        若为 None，自动使用 reference 的 max-min。
+        """
         result: dict[str, Any] = {"tool": self.name}
 
-        # 无参考指标 (总是计算)
         nr_scores = self.nr_iqa.evaluate(image)
         result["no_reference"] = nr_scores
 
-        # 有参考指标
         if reference is not None:
             metric_names = metrics or ["psnr", "ssim"]
-            fr_scores = compute_metrics(image, reference, metric_names)
+            if data_range is None:
+                data_range = float(max(reference.max() - reference.min(), 1e-10))
+            fr_scores = compute_metrics(image, reference, metric_names, data_range=data_range)
             result["full_reference"] = fr_scores
+            result["data_range_used"] = data_range
 
         # 质量等级判定
         result["quality_grade"] = self._grade_quality(nr_scores)

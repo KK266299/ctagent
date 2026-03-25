@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from src.tools.base import BaseTool, ToolResult
+from src.tools.base import BaseTool, ToolMeta, ToolResult
 from src.tools.registry import ToolRegistry
 
 
@@ -23,6 +23,16 @@ class CLAHE(BaseTool):
     @property
     def description(self) -> str:
         return "Contrast Limited Adaptive Histogram Equalization for low-contrast images."
+
+    @property
+    def meta(self) -> ToolMeta:
+        return ToolMeta(
+            category="contrast",
+            suitable_for=["contrast", "low_resolution"],
+            expected_cost="cheap",
+            expected_safety="moderate",
+            params_schema={"clip_limit": {"type": "float", "default": 0.02, "range": [0.005, 0.1]}},
+        )
 
     def run(self, image: np.ndarray, **kwargs: Any) -> ToolResult:
         from skimage.exposure import equalize_adapthist

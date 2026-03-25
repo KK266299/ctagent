@@ -14,7 +14,7 @@ from typing import Any
 
 import numpy as np
 
-from src.tools.base import BaseTool, ToolResult
+from src.tools.base import BaseTool, ToolMeta, ToolResult
 from src.tools.registry import ToolRegistry
 
 
@@ -48,6 +48,16 @@ class GaussianDenoise(BaseTool):
     def description(self) -> str:
         return "Gaussian filter denoising, fast but may blur edges."
 
+    @property
+    def meta(self) -> ToolMeta:
+        return ToolMeta(
+            category="denoise",
+            suitable_for=["noise"],
+            expected_cost="cheap",
+            expected_safety="moderate",
+            params_schema={"sigma": {"type": "float", "default": 1.0, "range": [0.5, 5.0]}},
+        )
+
     def run(self, image: np.ndarray, **kwargs: Any) -> ToolResult:
         from scipy.ndimage import gaussian_filter
 
@@ -72,6 +82,19 @@ class BilateralDenoise(BaseTool):
     @property
     def description(self) -> str:
         return "Bilateral filter: edge-preserving denoising for mild-to-moderate noise."
+
+    @property
+    def meta(self) -> ToolMeta:
+        return ToolMeta(
+            category="denoise",
+            suitable_for=["noise", "artifact"],
+            expected_cost="medium",
+            expected_safety="safe",
+            params_schema={
+                "sigma_color": {"type": "float", "default": 0.05, "range": [0.01, 0.2]},
+                "sigma_spatial": {"type": "float", "default": 5, "range": [1, 15]},
+            },
+        )
 
     def run(self, image: np.ndarray, **kwargs: Any) -> ToolResult:
         from skimage.restoration import denoise_bilateral
@@ -109,6 +132,16 @@ class TVDenoise(BaseTool):
     def description(self) -> str:
         return "Total Variation denoising: strong edge-preserving for moderate-severe noise."
 
+    @property
+    def meta(self) -> ToolMeta:
+        return ToolMeta(
+            category="denoise",
+            suitable_for=["noise", "artifact"],
+            expected_cost="medium",
+            expected_safety="safe",
+            params_schema={"weight": {"type": "float", "default": 0.1, "range": [0.01, 0.5]}},
+        )
+
     def run(self, image: np.ndarray, **kwargs: Any) -> ToolResult:
         from skimage.restoration import denoise_tv_chambolle
 
@@ -138,6 +171,20 @@ class NLMDenoise(BaseTool):
     @property
     def description(self) -> str:
         return "Non-Local Means denoising: structure-aware via self-similarity."
+
+    @property
+    def meta(self) -> ToolMeta:
+        return ToolMeta(
+            category="denoise",
+            suitable_for=["noise"],
+            expected_cost="expensive",
+            expected_safety="safe",
+            params_schema={
+                "h": {"type": "float", "default": "auto", "range": [0.005, 0.2]},
+                "patch_size": {"type": "int", "default": 5, "range": [3, 9]},
+                "patch_distance": {"type": "int", "default": 6, "range": [3, 11]},
+            },
+        )
 
     def run(self, image: np.ndarray, **kwargs: Any) -> ToolResult:
         from skimage.restoration import denoise_nl_means, estimate_sigma
@@ -179,6 +226,16 @@ class WienerDenoise(BaseTool):
     @property
     def description(self) -> str:
         return "Wiener filter: frequency-domain denoising for uniform Gaussian noise."
+
+    @property
+    def meta(self) -> ToolMeta:
+        return ToolMeta(
+            category="denoise",
+            suitable_for=["noise"],
+            expected_cost="cheap",
+            expected_safety="moderate",
+            params_schema={"mysize": {"type": "int", "default": 5, "range": [3, 15]}},
+        )
 
     def run(self, image: np.ndarray, **kwargs: Any) -> ToolResult:
         from scipy.signal import wiener

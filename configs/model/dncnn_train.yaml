@@ -1,0 +1,37 @@
+# ============================================================================
+# DnCNN 训练配置
+#
+# 用法:
+#   PYTHONPATH=. CUDA_VISIBLE_DEVICES=0 python scripts/train_dncnn.py \
+#       --config configs/model/dncnn_train.yaml
+#
+#   # 快速验证 (少量数据):
+#   PYTHONPATH=. CUDA_VISIBLE_DEVICES=0 python scripts/train_dncnn.py \
+#       --config configs/model/dncnn_train.yaml --max-cases 50 --epochs 10
+# ============================================================================
+
+# 数据
+data:
+  processed_dir: "/home/liuxinyao/data/cq500_processed"
+  max_train_cases: null  # null = 全部, 或指定数量限制
+  test_ratio: 0.2        # 20% cases 留作测试, 防止数据泄漏
+
+# 模型
+depth: 17            # DnCNN 深度 (论文标准 17 层)
+channels: 64         # 中间通道数
+
+# 训练
+device: "cuda:0"
+epochs: 30
+batch_size: 32
+lr: 1.0e-4
+patch_size: 64       # 训练 patch 大小
+patches_per_image: 8 # 每张图提取多少个 patch
+
+# 损失权重: L1 + SSIM 组合
+loss_weights:
+  l1: 1.0
+  ssim: 0.3
+
+# 保存
+save_dir: "checkpoints"

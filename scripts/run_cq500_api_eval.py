@@ -28,13 +28,19 @@ def main() -> None:
                         help="Max number of cases to evaluate (for testing)")
     parser.add_argument("--input-types", nargs="+", default=None,
                         help="Override input types (e.g., clean degraded)")
+    parser.add_argument("--model", type=str, default=None,
+                        help="Override LLM model (e.g., gpt-4o, openai/gpt-4o)")
+    parser.add_argument("--base-url", type=str, default=None,
+                        help="Override LLM base URL (e.g., https://api.openai.com/v1)")
+    parser.add_argument("--temperature", type=float, default=None,
+                        help="Override LLM temperature")
     args = parser.parse_args()
 
     with open(args.config) as f:
         cfg = yaml.safe_load(f)
 
     from eval.cq500_labels import CQ500Labels
-    from eval.cq500_manifest import build_eval_manifest
+    from eval.cq500_manifest import build_eval_manifest, SOPIndex
     from eval.cq500_api_eval import (
         run_batch_eval,
         aggregate_results,
@@ -50,15 +56,55 @@ def main() -> None:
     pos_counts = labels.positive_counts()
     logger.info("Positive counts: %s", pos_counts)
 
-    # --- 构建 manifest ---
+    # --- 加载 BHX 标注和 SOPIndex (可选) ---
+    bhx_annotations = None
+    sop_index = None
     manifest_cfg = cfg["data"]
+
+    bhx_csv = manifest_cfg.get("bhx_csv")
+    sop_index_path = manifest_cfg.get("sop_index")
+
+    if bhx_csv and sop_index_path:
+        from pathlib import Path
+        if Path(bhx_csv).exists() and Path(sop_index_path).exists():
+            from eval.bhx_loader import BHXAnnotations
+            bhx_annotations = BHXAnnotations(bhx_csv)
+            sop_index = SOPIndex(sop_index_path)
+            logger.info(
+                "Lesion-aware slice selection enabled: BHX=%s, SOPIndex=%s",
+                bhx_csv, sop_index_path,
+            )
+        else:
+            if not Path(bhx_csv).exists():
+                logger.warning("BHX CSV not found: %s", bhx_csv)
+            if not Path(sop_index_path).exists():
+                logger.warning(
+                    "SOPIndex not found: %s — run scripts/build_sop_index.py first",
+                    sop_index_path,
+                )
+    else:
+        logger.info("BHX not configured — using middle_uniform slice selection")
+
+    # --- 构建 manifest ---
     cases = build_eval_manifest(
         processed_dir=manifest_cfg["processed_dir"],
         label_case_ids=set(labels.case_ids()),
         max_slices_per_case=manifest_cfg.get("max_slices_per_case", 5),
         mask_idx=manifest_cfg.get("mask_idx", 0),
         restored_dir=manifest_cfg.get("restored_dir"),
+        sop_index=sop_index,
+        bhx_annotations=bhx_annotations,
     )
+
+    if bhx_annotations:
+        n_lesion = sum(1 for c in cases if c.n_lesion_slices > 0)
+        methods = {}
+        for c in cases:
+            methods[c.selection_method] = methods.get(c.selection_method, 0) + 1
+        logger.info(
+            "Slice selection stats: %d/%d cases with lesion slices, methods=%s",
+            n_lesion, len(cases), methods,
+        )
     logger.info("Found %d evaluable cases", len(cases))
 
     if not cases:
@@ -69,18 +115,18 @@ def main() -> None:
         cases = cases[:args.max_cases]
         logger.info("Limiting to %d cases", len(cases))
 
-    # --- 创建 LLM client ---
+    # --- 创建 LLM client (命令行参数优先于配置文件) ---
     llm_cfg_dict = cfg.get("llm", {})
     llm_config = LLMConfig(
         provider=llm_cfg_dict.get("provider", "openai"),
-        model=llm_cfg_dict.get("model", "gpt-4o"),
-        base_url=llm_cfg_dict.get("base_url"),
-        temperature=llm_cfg_dict.get("temperature", 0.1),
+        model=args.model or llm_cfg_dict.get("model", "gpt-4o"),
+        base_url=args.base_url if args.base_url is not None else llm_cfg_dict.get("base_url"),
+        temperature=args.temperature if args.temperature is not None else llm_cfg_dict.get("temperature", 0.1),
         max_tokens=llm_cfg_dict.get("max_tokens", 1024),
         timeout=llm_cfg_dict.get("timeout", 120),
     )
     client = create_client(llm_config)
-    logger.info("LLM: %s / %s", llm_config.provider, llm_config.model)
+    logger.info("LLM: %s / %s (base_url=%s)", llm_config.provider, llm_config.model, llm_config.base_url)
 
     # --- 确定评测路数 ---
     input_types = args.input_types or cfg.get("eval", {}).get("input_types", ["clean", "degraded"])

@@ -84,6 +84,118 @@ class RestorationTool:
             "_restored_image": tool_result.image,
         }
 
+    def apply_chain(
+        self,
+        image: np.ndarray,
+        steps: list[dict[str, Any]],
+        reference: np.ndarray | None = None,
+    ) -> dict[str, Any]:
+        """链式修复 — 按顺序执行多个工具, 跟踪每步质量变化。
+
+        Args:
+            image: 输入图像 (μ 值空间)
+            steps: [{"tool_name": str, "params": dict}, ...]
+            reference: GT 参考图 (可选, 有则计算 PSNR/SSIM)
+
+        Returns:
+            {
+                "success": bool,
+                "steps_executed": int,
+                "quality_trace": [...],
+                "overall_improvement": {...},
+                "_restored_image": ndarray,
+            }
+        """
+        from src.iqa.metrics import compute_psnr, compute_ssim
+
+        current = image.copy()
+        quality_trace: list[dict[str, Any]] = []
+        any_success = False
+
+        before_nr = self.nr_iqa.evaluate(current)
+        before_fr: dict[str, float] = {}
+        data_range = float(max(reference.max() - reference.min(), 1e-10)) if reference is not None else 1.0
+        if reference is not None:
+            before_fr = {
+                "psnr": compute_psnr(current, reference, data_range),
+                "ssim": compute_ssim(current, reference, data_range),
+            }
+
+        prev_ssim = before_fr.get("ssim", None)
+
+        for i, step in enumerate(steps):
+            tool_name = step.get("tool_name", "")
+            params = step.get("params", {})
+
+            step_record: dict[str, Any] = {
+                "step": i,
+                "tool_name": tool_name,
+                "params": params,
+                "success": False,
+            }
+
+            q_before = self.nr_iqa.evaluate(current)
+            step_record["quality_before"] = q_before
+            snapshot = current.copy()
+
+            try:
+                tool = ToolRegistry.create(tool_name)
+                tool_result = tool.run(current, **params)
+                if tool_result.success and tool_result.image is not None:
+                    candidate = tool_result.image
+                    if reference is not None and prev_ssim is not None:
+                        step_ssim = compute_ssim(candidate, reference, data_range)
+                        if step_ssim < prev_ssim - 0.15:
+                            step_record["reverted"] = True
+                            step_record["reason"] = (
+                                f"SSIM dropped {prev_ssim:.4f}->{step_ssim:.4f}, reverted"
+                            )
+                            quality_trace.append(step_record)
+                            continue
+                    current = candidate
+                    step_record["success"] = True
+                    any_success = True
+                    step_record["message"] = tool_result.message
+                else:
+                    step_record["error"] = tool_result.message or "tool returned failure"
+            except Exception as e:
+                step_record["error"] = str(e)
+
+            q_after = self.nr_iqa.evaluate(current)
+            step_record["quality_after"] = q_after
+
+            if reference is not None:
+                step_record["psnr"] = compute_psnr(current, reference, data_range)
+                step_record["ssim"] = compute_ssim(current, reference, data_range)
+                prev_ssim = step_record["ssim"]
+
+            quality_trace.append(step_record)
+
+        after_nr = self.nr_iqa.evaluate(current)
+        after_fr: dict[str, float] = {}
+        if reference is not None:
+            after_fr = {
+                "psnr": compute_psnr(current, reference, data_range),
+                "ssim": compute_ssim(current, reference, data_range),
+            }
+
+        overall = {
+            k: after_nr[k] - before_nr[k] for k in before_nr if k in after_nr
+        }
+        if before_fr and after_fr:
+            overall["psnr_delta"] = after_fr["psnr"] - before_fr["psnr"]
+            overall["ssim_delta"] = after_fr["ssim"] - before_fr["ssim"]
+
+        return {
+            "success": any_success,
+            "steps_executed": len(quality_trace),
+            "quality_trace": quality_trace,
+            "quality_before": {**before_nr, **before_fr},
+            "quality_after": {**after_nr, **after_fr},
+            "overall_improvement": overall,
+            "_restored_image": current,
+        }
+
     def list_available_tools(self) -> list[str]:
         """列出所有可用修复工具。"""
         return ToolRegistry.list_tools()

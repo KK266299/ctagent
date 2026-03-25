@@ -211,3 +211,13 @@ class SinglePassPipeline:
         import src.tools.classical.denoise
         import src.tools.classical.sharpen
         import src.tools.classical.histogram
+        import src.tools.classical.wavelet  # noqa: F401
+        import src.tools.classical.median  # noqa: F401
+        import src.tools.classical.deblur  # noqa: F401
+        import src.tools.classical.enhance  # noqa: F401
+        import src.tools.classical.inpaint  # noqa: F401
+        import src.tools.classical.clip  # noqa: F401
+        import src.tools.classical.mar  # noqa: F401
+        import src.tools.classical.bm3d_denoise  # noqa: F401
+        import src.tools.learned.mar_adapter  # noqa: F401
+        import src.tools.learned.sr_adapter  # noqa: F401

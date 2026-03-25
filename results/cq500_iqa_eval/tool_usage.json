@@ -1,0 +1,14 @@
+{
+  "tool_frequency": {
+    "clip_extreme": 119,
+    "denoise_dncnn": 119,
+    "inpaint_biharmonic": 55,
+    "denoise_wavelet": 4
+  },
+  "chain_frequency": {
+    "clip_extreme -> denoise_dncnn": 60,
+    "clip_extreme -> inpaint_biharmonic -> denoise_dncnn": 55,
+    "clip_extreme -> denoise_wavelet -> denoise_dncnn": 4,
+    "(empty)": 1
+  }
+}

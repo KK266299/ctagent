@@ -1,31 +1,85 @@
 # ============================================================================
 # CQ500 闭源 API 诊断分类评测配置
+#
+# 用法:
+#   export OPENAI_API_KEY="sk-or-v1-你的OpenRouter密钥"
+#
+#   # 使用默认模型 (Qwen VL), 先跑 3 个 case
+#   PYTHONPATH=. python scripts/run_cq500_api_eval.py \
+#       --config configs/experiment/cq500_api_eval.yaml --max-cases 3
+#
+#   # 跑 50 个 case
+#   PYTHONPATH=. python scripts/run_cq500_api_eval.py \
+#       --config configs/experiment/cq500_api_eval.yaml --max-cases 50
+#
+#   # 全量
+#   PYTHONPATH=. python scripts/run_cq500_api_eval.py \
+#       --config configs/experiment/cq500_api_eval.yaml
+#
+#   # 只评测 clean 路
+#   PYTHONPATH=. python scripts/run_cq500_api_eval.py \
+#       --config configs/experiment/cq500_api_eval.yaml --input-types clean
 # ============================================================================
 
 data:
   reads_csv: "/home/liuxinyao/data/cq500/reads.csv"
   processed_dir: "/home/liuxinyao/data/cq500_processed"
-  # restored_dir: null  # 后续阶段使用
-  max_slices_per_case: 5
-  mask_idx: 0
+  # restored_dir: null  # 后续阶段: 修复后图像目录
+  max_slices_per_case: 3
+  mask_idx: 0              # 使用第几个金属掩模的退化结果 (0~9)
 
+  # ---- 病灶层优先选择 (BHX 标注) ----
+  # BHX: PhysioNet Brain Hemorrhage Extended bounding-box 标注
+  # 提供后, 优先选择含出血标注的切片, 而非简单取中间 5 层
+  # 如果不需要病灶优先, 注释掉以下两行即可退化为 middle_uniform 策略
+  bhx_csv: "/home/liuxinyao/data/physionet.org/files/bhx-brain-bounding-box/1.1/3_Extrapolation_to_Selected_Series.csv"
+  sop_index: "/home/liuxinyao/data/cq500_sop_index.json"
+  # 首次使用需先构建 sop_index:
+  #   PYTHONPATH=. python scripts/build_sop_index.py \
+  #       --cq500-root /home/liuxinyao/data/cq500 \
+  #       --processed-root /home/liuxinyao/data/cq500_processed \
+  #       --output /home/liuxinyao/data/cq500_sop_index.json
+
+# ---- LLM 模型配置 ----
+# api_key 统一从环境变量 OPENAI_API_KEY 读取, 不要写在此处
+#
+# 可选模型 (通过 OpenRouter, base_url 不变):
+#   Vision 模型 (推荐, 支持图像输入):
+#     - qwen/qwen-2.5-vl-72b-instruct   ← 当前默认, 中国区可用, 便宜 ($0.6/M)
+#     - qwen/qwen2-vl-72b-instruct      ← 上一代 Qwen VL
+#     - google/gemini-2.0-flash-001      ← 便宜快速, 但中国区可能受限
+#     - openai/gpt-4o                    ← 最强, 但中国区 403, 需代理
+#     - openai/gpt-4o-mini               ← 便宜版 GPT-4o, 同样需代理
+#     - anthropic/claude-sonnet-4-20250514  ← Claude, 中国区可能受限
+#
+#   如需直连 OpenAI (不走 OpenRouter):
+#     model: "gpt-4o"
+#     base_url: 删除或注释掉此行
+#     OPENAI_API_KEY 需要是 OpenAI 原生 key (sk-...)
+#     需要设置代理: export HTTPS_PROXY="http://127.0.0.1:7890"
+#
 llm:
   provider: "openai"
   model: "qwen/qwen-2.5-vl-72b-instruct"
   base_url: "https://openrouter.ai/api/v1"
-  # api_key 从环境变量 OPENAI_API_KEY 读取 (OpenRouter key: sk-or-v1-...)
   temperature: 0.1
   max_tokens: 1024
   timeout: 120
 
+# ---- CT 窗位设置 ----
+# μ (线衰减系数) → HU → 窗位归一化 → uint8 PNG
+# 默认为脑窗 (brain window): center=40 width=80 → HU [0, 80]
+# 骨窗: center=500 width=2000; 肺窗: center=-600 width=1500
 windowing:
   mu_water: 0.192
   window_center: 40.0
   window_width: 80.0
 
+# ---- 评测参数 ----
 eval:
-  input_types: ["clean", "degraded"]
-  rate_limit_sec: 1.0
+  input_types: ["clean", "degraded"]   # 可选: clean, degraded, restored
+  rate_limit_sec: 1.0                   # API 调用间隔 (秒), 防止限流
 
+# ---- 输出目录 ----
 output:
   dir: "results/cq500_api_eval"

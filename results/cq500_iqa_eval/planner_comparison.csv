@@ -1,0 +1,3 @@
+mode,n_valid,psnr_before,psnr_after,psnr_delta,ssim_before,ssim_after,ssim_delta,n_success,mean_latency
+rule,60,14.17,43.66,29.49,0.6403,0.9846,0.3443,60,0.22
+llm,60,14.17,38.99,24.81,0.6403,0.9727,0.3324,60,10.31

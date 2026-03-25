@@ -91,11 +91,19 @@ class PlannerCaller:
     @staticmethod
     def _default_tool_descriptions() -> dict[str, str]:
         return {
-            "denoise_nlm": "Non-Local Means denoising for mild to moderate noise",
-            "denoise_gaussian": "Gaussian filter denoising, fast but may blur edges",
+            "clip_extreme": "Clip μ values to [0, 0.55]. MUST be first step for metal artifact images. Zero cost.",
+            "denoise_tv": "Total Variation: strong edge-preserving, for moderate-severe noise",
+            "denoise_wavelet": "Wavelet thresholding (BayesShrink): multi-scale, preserves fine CT structures",
+            "denoise_bm3d": "BM3D denoising: best classical denoiser for PSNR",
+            "denoise_bilateral": "Bilateral filter: edge-preserving, for noise and light artifacts",
+            "denoise_nlm": "Non-Local Means denoising: structure-aware, for mild-moderate noise",
+            "denoise_median": "Median filter: effective against impulse noise and streak artifacts",
+            "denoise_gaussian": "Gaussian filter denoising: fast but blurs edges",
+            "denoise_wiener": "Wiener filter: frequency-domain, optimal for uniform Gaussian noise",
+            "deblur_richardson_lucy": "Richardson-Lucy deconvolution: restores PSF-blurred images",
             "sharpen_usm": "Unsharp mask sharpening for blurred images",
-            "histogram_clahe": "Adaptive histogram equalization for low contrast",
-            "ldct_denoiser": "Deep learning Low-Dose CT denoiser (severe noise)",
-            "mar_rise": "Metal Artifact Reduction for CT with metal implants",
-            "sr_ct": "CT Super Resolution for low-resolution images",
+            "enhance_laplacian": "Laplacian edge enhancement: boosts detail, may amplify noise",
+            "inpaint_biharmonic": "Biharmonic inpainting: fills small artifact/damaged regions",
+            "mar_learned": "Deep learning MAR (placeholder: classical pipeline fallback)",
+            "denoise_dncnn": "DnCNN deep learning denoiser: best PSNR/SSIM among all denoisers, trained on CT data. Use for moderate-severe noise.",
         }

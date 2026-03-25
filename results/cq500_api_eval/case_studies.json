@@ -1,19 +1,72 @@
 [
   {
-    "case_id": "CQ500CT10",
+    "case_id": "CQ500CT107",
+    "type": "clean_correct_degraded_wrong",
+    "clean_score": 5,
+    "degraded_score": 0,
+    "diff": 5
+  },
+  {
+    "case_id": "CQ500CT25",
     "type": "clean_correct_degraded_wrong",
     "clean_score": 10,
-    "degraded_score": 8,
-    "diff": 2
+    "degraded_score": 5,
+    "diff": 5
   },
   {
-    "case_id": "CQ500CT0",
-    "type": "high_confidence_shift",
-    "max_confidence_diff": 1.0
+    "case_id": "CQ500CT48",
+    "type": "clean_correct_degraded_wrong",
+    "clean_score": 9,
+    "degraded_score": 4,
+    "diff": 5
   },
   {
-    "case_id": "CQ500CT10",
-    "type": "high_confidence_shift",
-    "max_confidence_diff": 0.95
+    "case_id": "CQ500CT115",
+    "type": "clean_correct_degraded_wrong",
+    "clean_score": 9,
+    "degraded_score": 5,
+    "diff": 4
+  },
+  {
+    "case_id": "CQ500CT135",
+    "type": "clean_correct_degraded_wrong",
+    "clean_score": 9,
+    "degraded_score": 5,
+    "diff": 4
+  },
+  {
+    "case_id": "CQ500CT141",
+    "type": "clean_correct_degraded_wrong",
+    "clean_score": 10,
+    "degraded_score": 6,
+    "diff": 4
+  },
+  {
+    "case_id": "CQ500CT148",
+    "type": "clean_correct_degraded_wrong",
+    "clean_score": 10,
+    "degraded_score": 6,
+    "diff": 4
+  },
+  {
+    "case_id": "CQ500CT169",
+    "type": "clean_correct_degraded_wrong",
+    "clean_score": 10,
+    "degraded_score": 6,
+    "diff": 4
+  },
+  {
+    "case_id": "CQ500CT183",
+    "type": "clean_correct_degraded_wrong",
+    "clean_score": 10,
+    "degraded_score": 6,
+    "diff": 4
+  },
+  {
+    "case_id": "CQ500CT197",
+    "type": "clean_correct_degraded_wrong",
+    "clean_score": 10,
+    "degraded_score": 6,
+    "diff": 4
   }
 ]

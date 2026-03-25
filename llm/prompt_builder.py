@@ -20,15 +20,24 @@ from typing import Any
 PLANNING_SYSTEM_PROMPT = """\
 You are a CT image restoration planning agent. You analyze CT image quality
 reports and decide which restoration tools to apply, in what order.
+Images are in μ (linear attenuation coefficient) space, range ~[0, 0.5].
 
 ## Available Restoration Tools
 {tool_descriptions}
 
 ## Decision Criteria
 - Match tool to degradation type and severity
-- Order tools from most critical to refinement
-- Avoid redundant or conflicting tools
-- Consider downstream diagnostic requirements
+- Order: inpaint extreme pixels FIRST → denoise → sharpen/enhance LAST
+- NEVER stack two denoisers of the same family (e.g. bilateral after TV)
+- For metal artifact: use clip_extreme FIRST to bound range, then inpaint_biharmonic
+  to smoothly fill damaged regions, then optionally denoise_tv for residual noise.
+  Recommended chain: clip_extreme → inpaint_biharmonic → denoise_tv
+- clip_extreme alone hurts SSIM (creates flat regions). Always pair with inpaint_biharmonic.
+- PREFER denoise_dncnn over classical denoisers (TV, bilateral, NLM) — it has better PSNR/SSIM.
+  Use denoise_dncnn as the primary denoiser when noise is moderate or severe.
+- CRITICAL: Do NOT use histogram_clahe on μ-space CT images — destroys SSIM
+- CRITICAL: Do NOT use mar_threshold_replace — destroys bone structure
+- Maximum 3 tools per plan. Fewer is better if effective.
 
 ## Output Format
 Respond with ONLY a JSON object:
@@ -199,16 +208,47 @@ def build_replan_user_prompt(
 # ---- Guided planner prompts (API-guided planning + replanning) ----
 
 TOOL_CATALOG: list[dict[str, Any]] = [
+    # ---- Preprocess (always first) ----
+    {
+        "tool_name": "clip_extreme",
+        "category": "preprocess",
+        "suitable_for": ["artifact", "noise"],
+        "cost": "cheap",
+        "safety": "safe",
+        "description": "Clip μ values to [0, max_mu]. MUST be first step for metal artifact images.",
+        "params": {
+            "low": {"type": "float", "range": [0.0, 0.0], "default": 0.0},
+            "high": {"type": "float", "range": [0.3, 1.0], "default": 0.5},
+        },
+    },
+    # ---- MAR ----
+    # mar_threshold_replace omitted: too risky for μ-space, destroys bone tissue
+    # ---- Denoise ----
+    {
+        "tool_name": "denoise_bm3d",
+        "category": "denoise",
+        "suitable_for": ["noise"],
+        "cost": "expensive",
+        "safety": "safe",
+        "description": "BM3D denoising: state-of-the-art classical denoiser, best PSNR among classical methods.",
+        "params": {"sigma_psd": {"type": "float", "range": [0.001, 0.1], "default": "auto"}},
+    },
     {
         "tool_name": "denoise_tv",
         "category": "denoise",
+        "suitable_for": ["noise", "artifact"],
+        "cost": "medium",
+        "safety": "safe",
         "description": "Total Variation denoising: strong edge-preserving, best for moderate-severe noise.",
         "params": {"weight": {"type": "float", "range": [0.02, 0.20], "default": 0.1}},
     },
     {
         "tool_name": "denoise_bilateral",
         "category": "denoise",
-        "description": "Bilateral filter: edge-preserving, best for mild-moderate noise.",
+        "suitable_for": ["noise", "artifact"],
+        "cost": "medium",
+        "safety": "safe",
+        "description": "Bilateral filter: edge-preserving, best for mild-moderate noise and light artifacts.",
         "params": {
             "sigma_color": {"type": "float", "range": [0.02, 0.10], "default": 0.05},
             "sigma_spatial": {"type": "int", "range": [2, 10], "default": 5},
@@ -217,24 +257,72 @@ TOOL_CATALOG: list[dict[str, Any]] = [
     {
         "tool_name": "denoise_nlm",
         "category": "denoise",
+        "suitable_for": ["noise"],
+        "cost": "expensive",
+        "safety": "safe",
         "description": "Non-Local Means: structure-aware via self-similarity, good for textured regions.",
         "params": {"h": {"type": "float", "range": [0.01, 0.30], "default": "auto"}},
     },
     {
+        "tool_name": "denoise_wavelet",
+        "category": "denoise",
+        "suitable_for": ["noise", "artifact"],
+        "cost": "medium",
+        "safety": "safe",
+        "description": "Wavelet thresholding (BayesShrink): multi-scale, preserves fine structures well.",
+        "params": {
+            "wavelet": {"type": "str", "options": ["db1", "db4", "db8", "sym4"], "default": "db4"},
+            "method": {"type": "str", "options": ["BayesShrink", "VisuShrink"], "default": "BayesShrink"},
+        },
+    },
+    {
+        "tool_name": "denoise_median",
+        "category": "denoise",
+        "suitable_for": ["noise", "artifact"],
+        "cost": "cheap",
+        "safety": "safe",
+        "description": "Median filter: effective against impulse noise and streak artifacts.",
+        "params": {"size": {"type": "int", "range": [3, 9], "default": 3}},
+    },
+    {
         "tool_name": "denoise_gaussian",
         "category": "denoise",
+        "suitable_for": ["noise"],
+        "cost": "cheap",
+        "safety": "moderate",
         "description": "Gaussian filter: fast but blurs edges. Use only when speed matters.",
         "params": {"sigma": {"type": "float", "range": [0.5, 2.0], "default": 1.0}},
     },
     {
         "tool_name": "denoise_wiener",
         "category": "denoise",
+        "suitable_for": ["noise"],
+        "cost": "cheap",
+        "safety": "moderate",
         "description": "Wiener filter: frequency-domain, optimal for uniform Gaussian white noise.",
         "params": {"mysize": {"type": "int", "range": [3, 7], "default": 5}},
     },
+    # ---- Deblur ----
+    {
+        "tool_name": "deblur_richardson_lucy",
+        "category": "deblur",
+        "suitable_for": ["blur"],
+        "cost": "medium",
+        "safety": "moderate",
+        "description": "Richardson-Lucy iterative deconvolution: restores PSF-blurred images.",
+        "params": {
+            "iterations": {"type": "int", "range": [5, 50], "default": 15},
+            "psf_size": {"type": "int", "range": [3, 11], "default": 5},
+            "psf_sigma": {"type": "float", "range": [0.5, 3.0], "default": 1.0},
+        },
+    },
+    # ---- Sharpen ----
     {
         "tool_name": "sharpen_usm",
         "category": "sharpen",
+        "suitable_for": ["blur", "low_resolution"],
+        "cost": "cheap",
+        "safety": "moderate",
         "description": "Unsharp mask sharpening: recovers edges after denoising.",
         "params": {
             "radius": {"type": "float", "range": [1.0, 3.0], "default": 2.0},
@@ -242,10 +330,54 @@ TOOL_CATALOG: list[dict[str, Any]] = [
         },
     },
     {
+        "tool_name": "enhance_laplacian",
+        "category": "sharpen",
+        "suitable_for": ["blur", "low_resolution"],
+        "cost": "cheap",
+        "safety": "risky",
+        "description": "Laplacian edge enhancement: boosts high-frequency detail. May amplify noise.",
+        "params": {"alpha": {"type": "float", "range": [0.1, 1.0], "default": 0.3}},
+    },
+    # ---- Contrast ----
+    {
         "tool_name": "histogram_clahe",
         "category": "contrast",
-        "description": "CLAHE adaptive histogram equalization. WARNING: may hurt safety score.",
+        "suitable_for": ["contrast", "low_resolution"],
+        "cost": "cheap",
+        "safety": "moderate",
+        "description": "CLAHE adaptive histogram equalization. WARNING: may change intensity distribution.",
         "params": {"clip_limit": {"type": "float", "range": [0.005, 0.05], "default": 0.02}},
+    },
+    {
+        "tool_name": "histogram_match",
+        "category": "contrast",
+        "suitable_for": ["contrast", "artifact"],
+        "cost": "cheap",
+        "safety": "safe",
+        "description": "Histogram matching: align intensity to a reference image. Needs 'reference' param.",
+        "params": {"reference": {"type": "ndarray", "required": True}},
+    },
+    # ---- Deep Learning Denoise ----
+    {
+        "tool_name": "denoise_dncnn",
+        "category": "denoise",
+        "suitable_for": ["noise", "artifact"],
+        "cost": "medium",
+        "safety": "safe",
+        "description": "DnCNN deep learning denoiser: residual CNN trained on CT data. Best PSNR/SSIM among all denoisers. Prefer over classical denoisers when available.",
+        "params": {
+            "blend": {"type": "float", "range": [0.5, 1.0], "default": 1.0},
+        },
+    },
+    # ---- Inpaint ----
+    {
+        "tool_name": "inpaint_biharmonic",
+        "category": "inpaint",
+        "suitable_for": ["artifact"],
+        "cost": "expensive",
+        "safety": "moderate",
+        "description": "Biharmonic inpainting: fills small artifact regions. Auto-detects extreme pixels if no mask.",
+        "params": {"extreme_percentile": {"type": "float", "range": [95.0, 99.9], "default": 99.5}},
     },
 ]
 
@@ -317,15 +449,22 @@ Select the best tool(s) and parameters. Output JSON only.
 
 
 def _format_tool_catalog(catalog: list[dict[str, Any]] | None = None) -> str:
-    """将工具目录格式化为 prompt 中的表格。"""
+    """将工具目录格式化为 prompt 中的表格，含 cost/safety/suitable_for 信息。"""
     catalog = catalog or TOOL_CATALOG
     lines = []
     for t in catalog:
         params_str = ", ".join(
-            f"{k}: {v['range']} (default={v['default']})"
+            f"{k}: {v.get('range', v.get('options', '?'))} (default={v.get('default', '?')})"
             for k, v in t.get("params", {}).items()
+            if k != "reference"
         )
-        lines.append(f"- **{t['tool_name']}** [{t['category']}]: {t['description']}")
+        suitable = ", ".join(t.get("suitable_for", []))
+        cost = t.get("cost", "?")
+        safety = t.get("safety", "?")
+        lines.append(
+            f"- **{t['tool_name']}** [{t['category']}] "
+            f"(for: {suitable} | cost: {cost} | safety: {safety}): {t['description']}"
+        )
         if params_str:
             lines.append(f"  params: {params_str}")
     return "\n".join(lines)

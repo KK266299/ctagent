@@ -1,0 +1,114 @@
+======================================================================
+CQ500 IQA RESTORATION EVALUATION LOG
+Generated: 2026-03-25 08:13:32
+======================================================================
+
+## Train/Test Split
+Train cases: 311
+Test cases: 77
+Split ratio: 19.8% test
+Evaluated cases: 12 (all in TEST set: True)
+Data leakage: NONE
+
+## IQA Summary (test-only, no leakage)
+  [rule] n=60
+    PSNR: 14.17 -> 43.66 (delta=+29.49)
+    SSIM: 0.6403 -> 0.9846 (delta=+0.3443)
+    Success: 60/60  Latency: 0.2s
+  [llm] n=60
+    PSNR: 14.17 -> 38.99 (delta=+24.81)
+    SSIM: 0.6403 -> 0.9727 (delta=+0.3324)
+    Success: 60/60  Latency: 10.3s
+
+## Planner Comparison
+  rule: PSNR 14.17 -> 43.66 (29.49), SSIM 0.6403 -> 0.9846 (0.3443)
+  llm: PSNR 14.17 -> 38.99 (24.81), SSIM 0.6403 -> 0.9727 (0.3324)
+
+## Tool Usage
+  clip_extreme: 119
+  denoise_dncnn: 119
+  inpaint_biharmonic: 55
+  denoise_wavelet: 4
+  Chain frequency:
+    clip_extreme -> denoise_dncnn: 60
+    clip_extreme -> inpaint_biharmonic -> denoise_dncnn: 55
+    clip_extreme -> denoise_wavelet -> denoise_dncnn: 4
+    (empty): 1
+
+## Degradation Distribution
+  noise_severe: 120
+  artifact_metal_moderate: 118
+  artifact_metal_severe: 2
+
+## Per-Case Results (test set)
+  CQ500CT100/llm: PSNR=42.3 SSIM=0.9882 tools=['clip_extreme', 'inpaint_biharmonic', 'denoise_dncnn']
+  CQ500CT100/rule: PSNR=45.2 SSIM=0.9892 tools=['clip_extreme', 'denoise_dncnn']
+  CQ500CT11/llm: PSNR=36.8 SSIM=0.9682 tools=['clip_extreme', 'denoise_wavelet', 'denoise_dncnn']
+  CQ500CT11/rule: PSNR=44.0 SSIM=0.9813 tools=['clip_extreme', 'denoise_dncnn']
+  CQ500CT127/llm: PSNR=38.2 SSIM=0.9599 tools=['clip_extreme', 'denoise_wavelet', 'denoise_dncnn']
+  CQ500CT127/rule: PSNR=45.0 SSIM=0.9857 tools=['clip_extreme', 'denoise_dncnn']
+  CQ500CT13/llm: PSNR=41.6 SSIM=0.9883 tools=['clip_extreme', 'inpaint_biharmonic', 'denoise_dncnn']
+  CQ500CT13/rule: PSNR=41.6 SSIM=0.9883 tools=['clip_extreme', 'denoise_dncnn']
+  CQ500CT134/llm: PSNR=38.9 SSIM=0.9637 tools=['clip_extreme', 'inpaint_biharmonic', 'denoise_dncnn']
+  CQ500CT134/rule: PSNR=43.3 SSIM=0.9878 tools=['clip_extreme', 'denoise_dncnn']
+  CQ500CT139/llm: PSNR=34.8 SSIM=0.9253 tools=['clip_extreme', 'inpaint_biharmonic', 'denoise_dncnn']
+  CQ500CT139/rule: PSNR=44.4 SSIM=0.9837 tools=['clip_extreme', 'denoise_dncnn']
+  CQ500CT143/llm: PSNR=42.3 SSIM=0.9848 tools=['clip_extreme', 'inpaint_biharmonic', 'denoise_dncnn']
+  CQ500CT143/rule: PSNR=42.3 SSIM=0.9848 tools=['clip_extreme', 'denoise_dncnn']
+  CQ500CT154/llm: PSNR=42.0 SSIM=0.9819 tools=['clip_extreme', 'inpaint_biharmonic', 'denoise_dncnn']
+  CQ500CT154/rule: PSNR=43.0 SSIM=0.9827 tools=['clip_extreme', 'denoise_dncnn']
+  CQ500CT157/llm: PSNR=41.9 SSIM=0.9862 tools=['clip_extreme', 'inpaint_biharmonic', 'denoise_dncnn']
+  CQ500CT157/rule: PSNR=44.6 SSIM=0.9872 tools=['clip_extreme', 'denoise_dncnn']
+  CQ500CT170/llm: PSNR=35.8 SSIM=0.9825 tools=['clip_extreme', 'inpaint_biharmonic', 'denoise_dncnn']
+  CQ500CT170/rule: PSNR=43.7 SSIM=0.9860 tools=['clip_extreme', 'denoise_dncnn']
+  CQ500CT171/llm: PSNR=37.4 SSIM=0.9814 tools=['clip_extreme', 'inpaint_biharmonic', 'denoise_dncnn']
+  CQ500CT171/rule: PSNR=46.2 SSIM=0.9856 tools=['clip_extreme', 'denoise_dncnn']
+  CQ500CT172/llm: PSNR=37.2 SSIM=0.9785 tools=['clip_extreme', 'inpaint_biharmonic', 'denoise_dncnn']
+  CQ500CT172/rule: PSNR=42.0 SSIM=0.9806 tools=['clip_extreme', 'denoise_dncnn']
+
+## Model Info
+DnCNN: depth=17, channels=64, params=0.56M
+Training: 311 cases (80%), L1+SSIM loss, 30 epochs
+Weights: checkpoints/dncnn_ct.pth
+LLM: qwen/qwen-2.5-vl-72b-instruct via OpenRouter
+Replan rounds: 3
+
+## Raw Terminal Output
+---
+21:54:38 [INFO] eval.cq500_iqa_restore_eval: [118/120] CQ500CT172 / CT000170 / llm (rounds=3)
+21:54:38 [INFO] src.planner.agent_based: Perception complete: noise
+21:54:39 [INFO] httpx: HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+21:54:41 [INFO] llm.planner_caller: LLM planning response length: 708 chars
+21:54:42 [INFO] src.planner.agent_based: Perception complete: noise
+21:54:42 [INFO] httpx: HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+21:54:45 [INFO] llm.planner_caller: LLM planning response length: 694 chars
+21:54:45 [INFO] src.planner.agent_based: Perception complete: noise
+21:54:46 [INFO] httpx: HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+21:54:49 [INFO] llm.planner_caller: LLM planning response length: 903 chars
+21:54:50 [INFO] eval.cq500_iqa_restore_eval: [119/120] CQ500CT172 / CT000240 / rule (rounds=1)
+21:54:50 [INFO] eval.cq500_iqa_restore_eval: [120/120] CQ500CT172 / CT000240 / llm (rounds=3)
+21:54:50 [INFO] src.planner.agent_based: Perception complete: noise
+21:54:51 [INFO] httpx: HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+21:54:53 [INFO] llm.planner_caller: LLM planning response length: 730 chars
+21:54:54 [INFO] src.planner.agent_based: Perception complete: noise
+21:54:54 [INFO] httpx: HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+21:54:58 [INFO] llm.planner_caller: LLM planning response length: 775 chars
+21:54:59 [INFO] src.planner.agent_based: Perception complete: noise
+21:55:00 [INFO] httpx: HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 200 OK"
+21:55:03 [INFO] llm.planner_caller: LLM planning response length: 925 chars
+21:55:05 [INFO] eval.cq500_iqa_restore_eval: Saved IQA eval outputs to results/cq500_iqa_eval
+21:55:05 [INFO] cq500_iqa_eval: ============================================================
+21:55:05 [INFO] cq500_iqa_eval: IQA EVALUATION SUMMARY
+21:55:05 [INFO] cq500_iqa_eval: ============================================================
+21:55:05 [INFO] cq500_iqa_eval:   [rule] PSNR: 14.17 → 43.66 (Δ29.49)  SSIM: 0.6403 → 0.9846 (Δ0.3443)  success=60/60  latency=0.2s
+21:55:05 [INFO] cq500_iqa_eval:   [llm] PSNR: 14.17 → 38.99 (Δ24.81)  SSIM: 0.6403 → 0.9727 (Δ0.3324)  success=60/60  latency=10.3s
+21:55:05 [INFO] cq500_iqa_eval: Results saved to: results/cq500_iqa_eval
+========== ALL DONE ==========
+(llamafactory) liuxinyao@liuxinyao:~/project/ctagent$ cd /home/liuxinyao/project/ctagent && PYTHONPATH=. CUDA_VISIBLE_DEVICES=5 b                                                                                            source ~/network.sh && PYTHONPATH=. C                                                      cd /home/liuxinyao/project/ctagent && PYTHONPATH=. CUDA_VISIBLE_DEVICES=5 b
+(llamafactory) liuxinyao@liuxinyao:~/project/ctagent$ tmux a -t iqa-ct
+sessions should be nested with care, unset $TMUX to force
+(llamafactory) liuxinyao@liuxinyao:~/project/ctagent$ set -g mouse on
+-bash: set: -g: invalid option
+set: usage: set [-abefhkmnptuvxBCHP] [-o option-name] [--] [arg ...]
+(llamafactory) liuxinyao@liuxinyao:~/project/ctagent$
+[iqa-ct-7]0:bash*                                                                    "liuxinyao" 08:13 25-Mar-26

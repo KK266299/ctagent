@@ -13,6 +13,19 @@ import numpy as np
 
 
 @dataclass
+class ToolMeta:
+    """工具元信息 — 供 planner 筛选和排序。"""
+    category: str = "other"
+    suitable_for: list[str] = field(default_factory=list)
+    expected_cost: str = "cheap"
+    expected_safety: str = "safe"
+    params_schema: dict[str, Any] = field(default_factory=dict)
+
+    def matches_degradation(self, degradation_type: str) -> bool:
+        return degradation_type in self.suitable_for
+
+
+@dataclass
 class ToolResult:
     """工具执行结果。"""
     image: np.ndarray
@@ -29,6 +42,9 @@ class BaseTool(ABC):
     - name: 工具名称
     - description: 工具描述 (供 planner 参考)
     - run(): 执行修复
+
+    可选重写:
+    - meta: 工具元信息 (供 planner 筛选)
     """
 
     @property
@@ -43,17 +59,14 @@ class BaseTool(ABC):
         """工具功能描述，用于 planner 选择。"""
         ...
 
+    @property
+    def meta(self) -> ToolMeta:
+        """工具元信息，子类可重写以提供详细信息。"""
+        return ToolMeta()
+
     @abstractmethod
     def run(self, image: np.ndarray, **kwargs: Any) -> ToolResult:
-        """执行图像修复。
-
-        Args:
-            image: 输入图像
-            **kwargs: 工具特定参数
-
-        Returns:
-            ToolResult 包含修复后图像和元信息
-        """
+        """执行图像修复。"""
         ...
 
     def validate_input(self, image: np.ndarray) -> bool:

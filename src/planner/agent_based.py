@@ -42,6 +42,7 @@ class AgentBasedPlanner(BasePlanner):
         max_iterations: int = 1,
         max_chain: int = 3,
         tool_descriptions: dict[str, str] | None = None,
+        detector_config: dict[str, Any] | None = None,
     ) -> None:
         """
         Args:
@@ -50,34 +51,36 @@ class AgentBasedPlanner(BasePlanner):
             max_iterations: 最大 perception-plan 迭代次数
             max_chain: 单次计划最大工具数
             tool_descriptions: {tool_name: description}
+            detector_config: 传递给 AnalysisTool 内部 DegradationDetector 的阈值配置
         """
         self.max_iterations = max_iterations
         self.max_chain = max_chain
         self.tool_descriptions = tool_descriptions or self._default_tool_descriptions()
 
-        # LLM 调用层: 优先使用 PlannerCaller，其次包装 legacy callable
         self._planner_caller = planner_caller
         self._legacy_api_caller = api_caller
 
-        # 如果传了 legacy api_caller 但没传 planner_caller，自动桥接
         if self._planner_caller is None and self._legacy_api_caller is not None:
             self._planner_caller = self._bridge_legacy_caller(
                 self._legacy_api_caller, self.tool_descriptions, self.max_chain
             )
 
-        # MCP-style perception tools
-        self.analysis_tool = AnalysisTool()
+        # MCP-style perception tools — 使用校准后的 detector config
+        from src.degradations.detector import DegradationDetector
+        detector = DegradationDetector(detector_config) if detector_config else None
+        self.analysis_tool = AnalysisTool(detector=detector)
         self.perception_tool = PerceptionTool()
         self.statistics_tool = StatisticsTool()
 
     def plan(self, report: DegradationReport, **kwargs: Any) -> Plan:
         """根据退化报告生成计划 (兼容 BasePlanner 接口)。"""
         image = kwargs.get("image")
+        extra_context = kwargs.get("extra_context", "")
         if image is not None and self._planner_caller is not None:
-            return self.plan_with_perception(image)
+            return self.plan_with_perception(image, extra_context=extra_context)
         return self._fallback_rule_plan(report)
 
-    def plan_with_perception(self, image: np.ndarray) -> Plan:
+    def plan_with_perception(self, image: np.ndarray, extra_context: str = "") -> Plan:
         """完整 agent 流程: 感知 → LLM 规划。"""
         perceptions = self.collect_perceptions(image)
         logger.info(
@@ -90,9 +93,9 @@ class AgentBasedPlanner(BasePlanner):
                 analysis=perceptions["analysis"],
                 perception=perceptions["perception"],
                 statistics=perceptions["statistics"],
+                extra_context=extra_context,
             )
 
-        # 无 LLM: 从 analysis 直接生成简单计划
         return self._analysis_to_plan(perceptions["analysis"])
 
     def collect_perceptions(self, image: np.ndarray) -> dict[str, Any]:
@@ -115,17 +118,18 @@ class AgentBasedPlanner(BasePlanner):
     def _analysis_to_plan(analysis: dict) -> Plan:
         """从分析结果直接生成简单计划 (无 LLM 时的降级策略)。"""
         primary = analysis.get("primary_degradation", "none")
-        mapping = {
-            "noise": "denoise_nlm",
-            "blur": "sharpen_usm",
-            "artifact_metal": "mar_rise",
-            "low_resolution": "sr_ct",
-            "low_dose": "ldct_denoiser",
+        mapping: dict[str, list[str]] = {
+            "noise": ["denoise_wavelet"],
+            "blur": ["deblur_richardson_lucy", "sharpen_usm"],
+            "artifact_metal": ["denoise_median", "denoise_bilateral"],
+            "low_resolution": ["sharpen_usm", "enhance_laplacian"],
+            "low_dose": ["denoise_wavelet", "denoise_bilateral"],
+            "contrast": ["histogram_clahe"],
         }
-        tool_name = mapping.get(primary)
-        if tool_name:
+        tools = mapping.get(primary, [])
+        if tools:
             return Plan(
-                steps=[ToolCall(tool_name=tool_name)],
+                steps=[ToolCall(tool_name=t) for t in tools],
                 reasoning=f"Fallback: primary degradation is {primary}",
             )
         return Plan(reasoning="No degradation detected")
@@ -133,13 +137,19 @@ class AgentBasedPlanner(BasePlanner):
     @staticmethod
     def _default_tool_descriptions() -> dict[str, str]:
         return {
-            "denoise_nlm": "Non-Local Means denoising for mild to moderate noise",
-            "denoise_gaussian": "Gaussian filter denoising, fast but may blur edges",
+            "denoise_nlm": "Non-Local Means denoising: structure-aware, for mild-moderate noise",
+            "denoise_gaussian": "Gaussian filter denoising: fast but blurs edges",
+            "denoise_bilateral": "Bilateral filter: edge-preserving, for noise and light artifacts",
+            "denoise_tv": "Total Variation: strong edge-preserving, for moderate-severe noise",
+            "denoise_wavelet": "Wavelet thresholding (BayesShrink): multi-scale, preserves fine CT structures",
+            "denoise_median": "Median filter: effective against impulse noise and streak artifacts",
+            "denoise_wiener": "Wiener filter: frequency-domain, optimal for uniform Gaussian noise",
+            "deblur_richardson_lucy": "Richardson-Lucy deconvolution: restores PSF-blurred images",
             "sharpen_usm": "Unsharp mask sharpening for blurred images",
-            "histogram_clahe": "Adaptive histogram equalization for low contrast",
-            "ldct_denoiser": "Deep learning Low-Dose CT denoiser (severe noise)",
-            "mar_rise": "Metal Artifact Reduction for CT with metal implants",
-            "sr_ct": "CT Super Resolution for low-resolution images",
+            "enhance_laplacian": "Laplacian edge enhancement: boosts detail, may amplify noise",
+            "histogram_clahe": "CLAHE adaptive histogram equalization for low contrast",
+            "histogram_match": "Histogram matching: align intensity to a reference image",
+            "inpaint_biharmonic": "Biharmonic inpainting: fills small artifact/damaged regions",
         }
 
     # ------------------------------------------------------------------

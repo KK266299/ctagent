@@ -1,0 +1,74 @@
+# ============================================================================
+# CQ500 IQA + 修复评测配置
+#
+# 用法:
+#   # 纯规则 (无需 API, 最快)
+#   PYTHONPATH=. python scripts/run_cq500_iqa_eval.py \
+#       --config configs/experiment/cq500_iqa_eval.yaml --planner-mode rule --max-cases 5
+#
+#   # LLM 模式
+#   source ~/network.sh
+#   PYTHONPATH=. python scripts/run_cq500_iqa_eval.py \
+#       --config configs/experiment/cq500_iqa_eval.yaml --planner-mode llm --max-cases 5
+#
+#   # rule vs llm 对比
+#   PYTHONPATH=. python scripts/run_cq500_iqa_eval.py \
+#       --config configs/experiment/cq500_iqa_eval.yaml --planner-mode both --max-cases 5
+#
+#   # 全量 rule (不用 API)
+#   PYTHONPATH=. python scripts/run_cq500_iqa_eval.py \
+#       --config configs/experiment/cq500_iqa_eval.yaml --planner-mode rule
+# ============================================================================
+
+data:
+  processed_dir: "/home/liuxinyao/data/cq500_processed"
+  max_slices_per_case: 3
+  mask_idx: 0
+
+  # BHX 病灶感知切片选择 (可选, 注释掉则退化为 middle_uniform)
+  bhx_csv: "/home/liuxinyao/data/physionet.org/files/bhx-brain-bounding-box/1.1/3_Extrapolation_to_Selected_Series.csv"
+  sop_index: "/home/liuxinyao/data/cq500_sop_index.json"
+
+# ---- 退化检测器阈值 ----
+# 针对 μ 值空间 (范围 0~0.5) 校准
+# 校准参考: clean noise≈0.001, degraded noise≈0.034; clean metal=0, degraded metal≈0.0015
+detector:
+  noise_thresholds:
+    mild: 0.005
+    moderate: 0.015
+    severe: 0.030
+  blur_thresholds:
+    mild: 0.00015
+    moderate: 0.0001
+    severe: 0.00005
+  metal_thresholds:
+    mild: 0.0005
+    moderate: 0.001
+    severe: 0.002
+  lowres_thresholds:
+    mild: 0.00020
+    moderate: 0.00010
+    severe: 0.00005
+  mu_water: 0.192
+
+# ---- Planner 设置 ----
+planner:
+  mode: "rule"       # rule / llm / both
+  max_chain: 3       # 每次最多执行几个工具
+
+# ---- LLM 配置 (planner_mode=llm 或 both 时使用) ----
+llm:
+  provider: "openai"
+  model: "qwen/qwen-2.5-vl-72b-instruct"
+  base_url: "https://openrouter.ai/api/v1"
+  temperature: 0.1
+  max_tokens: 1024
+  timeout: 120
+
+# ---- 评测参数 ----
+eval:
+  rate_limit_sec: 1.0    # LLM 调用间隔 (秒)
+
+# ---- 输出 ----
+output:
+  dir: "results/cq500_iqa_eval"

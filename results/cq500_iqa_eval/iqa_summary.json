@@ -1,0 +1,28 @@
+{
+  "rule": {
+    "n_total": 60,
+    "n_valid": 60,
+    "n_errors": 0,
+    "n_restoration_success": 60,
+    "psnr_before_mean": 14.171765344169984,
+    "psnr_after_mean": 43.66069551229936,
+    "psnr_improvement": 29.48893016812938,
+    "ssim_before_mean": 0.6402679203319093,
+    "ssim_after_mean": 0.9845790494169109,
+    "ssim_improvement": 0.3443111290850016,
+    "mean_latency_sec": 0.2242414951324463
+  },
+  "llm": {
+    "n_total": 60,
+    "n_valid": 60,
+    "n_errors": 0,
+    "n_restoration_success": 60,
+    "psnr_before_mean": 14.171765344169984,
+    "psnr_after_mean": 38.986579897177634,
+    "psnr_improvement": 24.81481455300767,
+    "ssim_before_mean": 0.6402679203319093,
+    "ssim_after_mean": 0.9727074341388953,
+    "ssim_improvement": 0.3324395138069861,
+    "mean_latency_sec": 10.311593544483184
+  }
+}
