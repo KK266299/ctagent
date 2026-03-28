@@ -104,6 +104,16 @@ class PlannerCaller:
             "sharpen_usm": "Unsharp mask sharpening for blurred images",
             "enhance_laplacian": "Laplacian edge enhancement: boosts detail, may amplify noise",
             "inpaint_biharmonic": "Biharmonic inpainting: fills small artifact/damaged regions",
-            "mar_learned": "Deep learning MAR (placeholder: classical pipeline fallback)",
             "denoise_dncnn": "DnCNN deep learning denoiser: best PSNR/SSIM among all denoisers, trained on CT data. Use for moderate-severe noise.",
+            # --- CT artifact-specific tools ---
+            "ring_removal_polar": "Remove ring artifacts via polar-coordinate median filtering. Params: sigma (float, 1-5). Use for ring/concentric-band artifacts.",
+            "ring_removal_wavelet": "Remove ring artifacts via wavelet decomposition. Params: level (int, 2-6), sigma (float, 1-5). Use for severe ring artifacts.",
+            "motion_correction_tv": "Correct motion blur/ghosting via TV regularization. Params: weight (float, 0.05-0.3). Use for motion artifacts.",
+            "motion_correction_wiener": "Correct motion blur via Wiener deconvolution. Params: noise_var (float). Use for mild motion blur.",
+            "bhc_flatfield": "Beam hardening correction via flatfield normalization. Params: strength (float, 0.1-1.0). Use for cupping artifacts.",
+            "bhc_polynomial": "Beam hardening correction via polynomial fitting. Params: strength (float, 0.5-2.0). Use for severe beam hardening.",
+            "scatter_correction_detrend": "Remove scatter by subtracting low-frequency trend. Params: scatter_fraction (float, 0.1-0.5). Use for scatter/haze artifacts.",
+            "scatter_correction_clahe": "Restore contrast lost to scatter via CLAHE. Use after scatter_correction_detrend for severe scatter.",
+            "truncation_correction_extrapolate": "Extend truncated FOV by boundary extrapolation. Params: margin (int, 5-40). Use for truncation/bright-edge artifacts.",
+            "truncation_correction_tv": "Smooth truncation boundary artifacts via TV. Params: weight (float, 0.05-0.2). Use after extrapolation for severe truncation.",
         }

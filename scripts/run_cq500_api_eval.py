@@ -56,6 +56,12 @@ def main() -> None:
                         help="Override LLM temperature")
     parser.add_argument("--append", type=str, default=None,
                         help="Append results to existing predictions.jsonl and re-aggregate")
+    parser.add_argument("--per-slice", action="store_true",
+                        help="Enable per-slice evaluation (1 API call per slice)")
+    parser.add_argument("--slice-labels", type=str, default=None,
+                        help="Path to slice_labels.csv (required for --per-slice)")
+    parser.add_argument("--bhx-only", action="store_true",
+                        help="Only evaluate slices from BHX-covered patients (per-slice mode)")
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -164,7 +170,83 @@ def main() -> None:
     # --- 运行评测 ---
     windowing = cfg.get("windowing", {})
     rate_limit = cfg.get("eval", {}).get("rate_limit_sec", 1.0)
+    output_dir = cfg.get("output", {}).get("dir", "results/cq500_api_eval")
 
+    # ===================== Per-Slice 评测模式 =====================
+    if args.per_slice:
+        slice_labels_path = (
+            args.slice_labels
+            or cfg.get("data", {}).get("slice_labels")
+        )
+        if not slice_labels_path:
+            logger.error(
+                "--slice-labels path required for per-slice mode. "
+                "Generate with: PYTHONPATH=. python scripts/build_slice_labels.py --config %s",
+                args.config,
+            )
+            sys.exit(1)
+
+        from pathlib import Path as _Path
+        if not _Path(slice_labels_path).exists():
+            logger.error("Slice labels file not found: %s", slice_labels_path)
+            sys.exit(1)
+
+        from eval.slice_labels import SliceLabelStore
+        from eval.slice_level_eval import (
+            run_slice_eval,
+            aggregate_slice_results,
+            save_slice_eval_outputs,
+        )
+
+        slice_label_store = SliceLabelStore(slice_labels_path)
+        logger.info("Loaded %d slice labels from %s", len(slice_label_store.entries), slice_labels_path)
+
+        slice_results = run_slice_eval(
+            llm_client=client,
+            cases=cases,
+            slice_labels=slice_label_store,
+            input_types=input_types,
+            mu_water=windowing.get("mu_water", 0.192),
+            window_center=windowing.get("window_center", 40.0),
+            window_width=windowing.get("window_width", 80.0),
+            rate_limit_sec=rate_limit,
+            bhx_only=args.bhx_only,
+        )
+
+        slice_summary = aggregate_slice_results(slice_results, input_types, split_by_lesion=True)
+        save_slice_eval_outputs(slice_results, slice_summary, output_dir)
+
+        logger.info("=" * 60)
+        logger.info("PER-SLICE EVALUATION SUMMARY")
+        logger.info("=" * 60)
+        for itype, m in slice_summary.get("per_input_type", {}).items():
+            all_m = m.get("all", {})
+            logger.info(
+                "  [%s/all] accuracy=%.4f  macro_F1=%.4f  micro_F1=%.4f  "
+                "auroc=%s  valid=%d  failed=%d",
+                itype,
+                all_m.get("mean_accuracy", 0),
+                all_m.get("macro_f1", 0),
+                all_m.get("micro_f1", 0),
+                all_m.get("mean_auroc", "N/A"),
+                m.get("n_valid", 0),
+                m.get("n_failed", 0),
+            )
+            for group in ["lesion_positive", "lesion_negative"]:
+                gm = m.get(group)
+                if gm:
+                    logger.info(
+                        "  [%s/%s] accuracy=%.4f  macro_F1=%.4f  n=%d",
+                        itype, group,
+                        gm.get("mean_accuracy", 0),
+                        gm.get("macro_f1", 0),
+                        gm.get("n", 0),
+                    )
+
+        logger.info("Results saved to: %s", output_dir)
+        return
+
+    # ===================== Case-Level 评测模式 (原有) =====================
     results = run_batch_eval(
         llm_client=client,
         cases=cases,
@@ -175,9 +257,6 @@ def main() -> None:
         window_width=windowing.get("window_width", 80.0),
         rate_limit_sec=rate_limit,
     )
-
-    # --- 如果追加模式，合并已有结果 ---
-    output_dir = cfg.get("output", {}).get("dir", "results/cq500_api_eval")
 
     if args.append:
         from pathlib import Path
@@ -215,13 +294,11 @@ def main() -> None:
     else:
         all_types = input_types
 
-    # --- 汇总与输出 ---
     summary = aggregate_results(results, all_types)
     case_studies = select_case_studies(results)
 
     save_outputs(results, summary, case_studies, output_dir)
 
-    # --- 打印摘要 ---
     logger.info("=" * 60)
     logger.info("EVALUATION SUMMARY")
     logger.info("=" * 60)

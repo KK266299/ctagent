@@ -4,12 +4,40 @@
 # 参考: ADN (https://github.com/liaohaofu/adn) MATLAB 实现
 # ============================================================================
 
-from dataset.mar.ct_geometry import CTGeometry
+try:
+    from dataset.mar.ct_geometry import CTGeometry
+except ModuleNotFoundError:  # pragma: no cover - optional dependency in lightweight envs
+    CTGeometry = None
+
 from dataset.mar.physics_params import PhysicsParams
-from dataset.mar.mar_simulator import MARSimulator
+
+try:
+    from dataset.mar.mar_simulator import MARSimulator
+except ModuleNotFoundError:  # pragma: no cover - optional dependency in lightweight envs
+    MARSimulator = None
+from dataset.mar.ct_artifact_simulator import (
+    ARTIFACT_SIMULATOR_REGISTRY,
+    BaseCTArtifactSimulator,
+    BeamHardeningArtifactSimulator,
+    CompositeArtifactSimulator,
+    MotionArtifactSimulator,
+    RingArtifactSimulator,
+    ScatterArtifactSimulator,
+    TruncationArtifactSimulator,
+    create_artifact_simulator,
+)
 
 __all__ = [
     "CTGeometry",
     "PhysicsParams",
     "MARSimulator",
+    "BaseCTArtifactSimulator",
+    "RingArtifactSimulator",
+    "MotionArtifactSimulator",
+    "BeamHardeningArtifactSimulator",
+    "ScatterArtifactSimulator",
+    "TruncationArtifactSimulator",
+    "CompositeArtifactSimulator",
+    "ARTIFACT_SIMULATOR_REGISTRY",
+    "create_artifact_simulator",
 ]

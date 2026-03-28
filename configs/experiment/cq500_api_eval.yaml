@@ -40,6 +40,15 @@ data:
   #       --processed-root /home/liuxinyao/data/cq500_processed \
   #       --output /home/liuxinyao/data/cq500_sop_index.json
 
+  # ---- 逐 Slice 标签 (per-slice evaluation) ----
+  # 生成方式:
+  #   PYTHONPATH=. python scripts/build_slice_labels.py \
+  #       --config configs/experiment/cq500_api_eval.yaml \
+  #       --strategy inherit_all \
+  #       --output-dir results/slice_labels
+  slice_labels: "results/slice_labels/slice_labels.csv"
+  slice_label_strategy: "inherit_all"  # inherit_all 或 bhx_aware
+
 # ---- LLM 模型配置 ----
 # api_key 统一从环境变量 OPENAI_API_KEY 读取, 不要写在此处
 #

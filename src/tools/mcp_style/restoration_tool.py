@@ -145,10 +145,15 @@ class RestorationTool:
                     candidate = tool_result.image
                     if reference is not None and prev_ssim is not None:
                         step_ssim = compute_ssim(candidate, reference, data_range)
-                        if step_ssim < prev_ssim - 0.15:
+                        step_psnr = compute_psnr(candidate, reference, data_range)
+                        prev_psnr = compute_psnr(current, reference, data_range)
+                        ssim_drop = prev_ssim - step_ssim
+                        psnr_drop = prev_psnr - step_psnr
+                        if ssim_drop > 0.03 or psnr_drop > 2.0:
                             step_record["reverted"] = True
                             step_record["reason"] = (
-                                f"SSIM dropped {prev_ssim:.4f}->{step_ssim:.4f}, reverted"
+                                f"Quality dropped SSIM {prev_ssim:.4f}->{step_ssim:.4f} "
+                                f"PSNR {prev_psnr:.2f}->{step_psnr:.2f}, reverted"
                             )
                             quality_trace.append(step_record)
                             continue

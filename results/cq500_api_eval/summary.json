@@ -307,13 +307,167 @@
       "n_valid": 692,
       "n_failed": 2,
       "mean_latency_sec": 12.42
+    },
+    "restored": {
+      "per_label": {
+        "ICH": {
+          "accuracy": 0.5101,
+          "precision": 0.3559,
+          "recall": 0.5316,
+          "f1": 0.4264,
+          "specificity": 0.4989,
+          "tp": 126,
+          "tn": 227,
+          "fp": 228,
+          "fn": 111,
+          "support_pos": 237,
+          "support_neg": 455
+        },
+        "IPH": {
+          "accuracy": 0.5376,
+          "precision": 0.25,
+          "recall": 0.5667,
+          "f1": 0.3469,
+          "specificity": 0.5295,
+          "tp": 85,
+          "tn": 287,
+          "fp": 255,
+          "fn": 65,
+          "support_pos": 150,
+          "support_neg": 542
+        },
+        "IVH": {
+          "accuracy": 0.9523,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "specificity": 0.9955,
+          "tp": 0,
+          "tn": 659,
+          "fp": 3,
+          "fn": 30,
+          "support_pos": 30,
+          "support_neg": 662
+        },
+        "SDH": {
+          "accuracy": 0.9147,
+          "precision": 0.3333,
+          "recall": 0.0727,
+          "f1": 0.1194,
+          "specificity": 0.9874,
+          "tp": 4,
+          "tn": 629,
+          "fp": 8,
+          "fn": 51,
+          "support_pos": 55,
+          "support_neg": 637
+        },
+        "EDH": {
+          "accuracy": 0.9812,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "specificity": 1.0,
+          "tp": 0,
+          "tn": 679,
+          "fp": 0,
+          "fn": 13,
+          "support_pos": 13,
+          "support_neg": 679
+        },
+        "SAH": {
+          "accuracy": 0.9205,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "specificity": 1.0,
+          "tp": 0,
+          "tn": 637,
+          "fp": 0,
+          "fn": 55,
+          "support_pos": 55,
+          "support_neg": 637
+        },
+        "Fracture": {
+          "accuracy": 0.9147,
+          "precision": 0.3529,
+          "recall": 0.1111,
+          "f1": 0.169,
+          "specificity": 0.9828,
+          "tp": 6,
+          "tn": 627,
+          "fp": 11,
+          "fn": 48,
+          "support_pos": 54,
+          "support_neg": 638
+        },
+        "CalvarialFracture": {
+          "accuracy": 0.9277,
+          "precision": 0.3529,
+          "recall": 0.1333,
+          "f1": 0.1935,
+          "specificity": 0.983,
+          "tp": 6,
+          "tn": 636,
+          "fp": 11,
+          "fn": 39,
+          "support_pos": 45,
+          "support_neg": 647
+        },
+        "MassEffect": {
+          "accuracy": 0.7023,
+          "precision": 0.3046,
+          "recall": 0.3841,
+          "f1": 0.3397,
+          "specificity": 0.7816,
+          "tp": 53,
+          "tn": 433,
+          "fp": 121,
+          "fn": 85,
+          "support_pos": 138,
+          "support_neg": 554
+        },
+        "MidlineShift": {
+          "accuracy": 0.7298,
+          "precision": 0.152,
+          "recall": 0.3824,
+          "f1": 0.2176,
+          "specificity": 0.7676,
+          "tp": 26,
+          "tn": 479,
+          "fp": 145,
+          "fn": 42,
+          "support_pos": 68,
+          "support_neg": 624
+        }
+      },
+      "macro_f1": 0.1812,
+      "micro_f1": 0.3166,
+      "mean_accuracy": 0.8091,
+      "auroc": {
+        "ICH": null,
+        "IPH": null,
+        "IVH": null,
+        "SDH": null,
+        "EDH": null,
+        "SAH": null,
+        "Fracture": null,
+        "CalvarialFracture": null,
+        "MassEffect": null,
+        "MidlineShift": null
+      },
+      "mean_auroc": null,
+      "n_total": 694,
+      "n_valid": 692,
+      "n_failed": 2,
+      "mean_latency_sec": 16.19
     }
   },
   "drop_recovery": {
     "clean_accuracy": 0.8383,
     "degraded_accuracy": 0.8246,
     "degraded_drop_pct": 1.63,
-    "restored_accuracy": null,
-    "restored_recovery_pct": null
+    "restored_accuracy": 0.8091,
+    "restored_recovery_pct": -113.14
   }
 }

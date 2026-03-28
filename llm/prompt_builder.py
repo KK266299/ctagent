@@ -39,6 +39,15 @@ Images are in μ (linear attenuation coefficient) space, range ~[0, 0.5].
 - CRITICAL: Do NOT use mar_threshold_replace — destroys bone structure
 - Maximum 3 tools per plan. Fewer is better if effective.
 
+## CT Artifact-Specific Rules
+- Ring artifact: use ring_removal_polar (mild) or ring_removal_wavelet (moderate/severe), optionally followed by denoise_bilateral
+- Motion artifact: use motion_correction_tv (moderate/severe) or motion_correction_wiener (mild), optionally followed by denoise_wavelet
+- Beam hardening: use bhc_flatfield (mild/moderate) or bhc_polynomial (severe), optionally followed by denoise_bilateral
+- Scatter: use scatter_correction_detrend, optionally followed by scatter_correction_clahe for severe cases
+- Truncation: use truncation_correction_extrapolate, optionally followed by truncation_correction_tv for severe cases
+- If ONLY mild generic degradation (noise, blur) is detected with NO specific artifacts, output an EMPTY steps list — do NOT apply tools (do-no-harm principle)
+- When multiple artifact types coexist, prioritize the most severe one first
+
 ## Output Format
 Respond with ONLY a JSON object:
 {{

@@ -1,0 +1,60 @@
+{
+  "total_slices": 22509,
+  "total_patients": 388,
+  "bhx_covered_slices": 8220,
+  "bhx_covered_patients": 151,
+  "non_bhx_slices": 14289,
+  "lesion_positive_slices": 1966,
+  "lesion_negative_slices": 20543,
+  "lesion_positive_rate": 0.0873,
+  "label_distribution": {
+    "ICH": {
+      "positive": 1788,
+      "negative": 20721
+    },
+    "IPH": {
+      "positive": 921,
+      "negative": 21588
+    },
+    "IVH": {
+      "positive": 310,
+      "negative": 22199
+    },
+    "SDH": {
+      "positive": 653,
+      "negative": 21856
+    },
+    "EDH": {
+      "positive": 179,
+      "negative": 22330
+    },
+    "SAH": {
+      "positive": 514,
+      "negative": 21995
+    },
+    "Fracture": {
+      "positive": 305,
+      "negative": 22204
+    },
+    "CalvarialFracture": {
+      "positive": 295,
+      "negative": 22214
+    },
+    "MassEffect": {
+      "positive": 1226,
+      "negative": 21283
+    },
+    "MidlineShift": {
+      "positive": 694,
+      "negative": 21815
+    }
+  },
+  "bhx_label_counts": {
+    "Subarachnoid": 654,
+    "Intraparenchymal": 576,
+    "Subdural": 822,
+    "Intraventricular": 150,
+    "Chronic": 379,
+    "Epidural": 69
+  }
+}

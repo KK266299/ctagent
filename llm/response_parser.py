@@ -30,9 +30,24 @@ PARAM_RANGES: dict[str, dict[str, tuple[float, float]]] = {
     "denoise_wiener": {"mysize": (3, 11)},
     "sharpen_usm": {"radius": (0.5, 5.0), "amount": (0.1, 3.0)},
     "histogram_clahe": {"clip_limit": (0.005, 0.05)},
+    "ring_removal_polar": {"sigma": (1.0, 5.0)},
+    "ring_removal_wavelet": {"level": (2, 6), "sigma": (1.0, 5.0)},
+    "motion_correction_tv": {"weight": (0.05, 0.3)},
+    "motion_correction_wiener": {"noise_var": (0.0001, 0.01)},
+    "bhc_flatfield": {"strength": (0.1, 1.0)},
+    "bhc_polynomial": {"strength": (0.5, 2.0)},
+    "scatter_correction_detrend": {"scatter_fraction": (0.1, 0.5)},
+    "truncation_correction_extrapolate": {"margin": (5, 40)},
+    "truncation_correction_tv": {"weight": (0.05, 0.2)},
 }
 
-VALID_TOOL_NAMES: set[str] = set(PARAM_RANGES.keys())
+_EXTRA_VALID_TOOLS: set[str] = {
+    "clip_extreme", "denoise_median", "denoise_wavelet", "denoise_bm3d",
+    "denoise_dncnn", "deblur_richardson_lucy", "enhance_laplacian",
+    "inpaint_biharmonic", "scatter_correction_clahe",
+}
+
+VALID_TOOL_NAMES: set[str] = set(PARAM_RANGES.keys()) | _EXTRA_VALID_TOOLS
 
 
 def clip_params(tool_name: str, params: dict[str, Any]) -> dict[str, Any]:

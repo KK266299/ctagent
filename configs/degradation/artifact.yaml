@@ -15,6 +15,48 @@ degradation:
       enabled: true
     ring_artifact:
       enabled: true
-      ring_count_range: [1, 5]
+      severity: ["mild", "moderate", "severe"]
+      bad_detector_fraction:
+        mild: [0.005, 0.010]
+        moderate: [0.010, 0.020]
+        severe: [0.020, 0.030]
+      gain_range:
+        mild: [0.95, 1.05]
+        moderate: [0.90, 1.10]
+        severe: [0.85, 1.15]
     motion_artifact:
-      enabled: false
+      enabled: true
+      severity: ["mild", "moderate", "severe"]
+      translation_mm:
+        mild: [1.0, 5.0]
+        moderate: [5.0, 10.0]
+        severe: [10.0, 15.0]
+    beam_hardening_artifact:
+      enabled: true
+      severity: ["mild", "moderate", "severe"]
+      alpha:
+        mild: [0.05, 0.08]
+        moderate: [0.08, 0.12]
+        severe: [0.12, 0.15]
+      beta:
+        mild: [0.001, 0.003]
+        moderate: [0.003, 0.006]
+        severe: [0.006, 0.010]
+    scatter_artifact:
+      enabled: true
+      severity: ["mild", "moderate", "severe"]
+      scatter_ratio:
+        mild: [0.01, 0.03]
+        moderate: [0.03, 0.06]
+        severe: [0.06, 0.10]
+      blur_sigma_mm:
+        mild: [30.0, 45.0]
+        moderate: [45.0, 60.0]
+        severe: [60.0, 80.0]
+    truncation_artifact:
+      enabled: true
+      severity: ["mild", "moderate", "severe"]
+      truncate_ratio:
+        mild: [0.05, 0.10]
+        moderate: [0.10, 0.20]
+        severe: [0.20, 0.30]
