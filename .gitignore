@@ -27,3 +27,4 @@ Thumbs.db
 *.pt
 *.ckpt
 *.safetensors
+*.png
