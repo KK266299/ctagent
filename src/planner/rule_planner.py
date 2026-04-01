@@ -89,6 +89,56 @@ DEFAULT_RULES: dict[tuple[DegradationType, Severity], list] = {
         ("truncation_correction_tv", {"weight": 0.15}),
         "denoise_dncnn",
     ],
+    # ---- Low-Dose Noise (Poisson noise dominant → DnCNN + TV) ----
+    (DegradationType.LOW_DOSE, Severity.MILD): ["denoise_dncnn"],
+    (DegradationType.LOW_DOSE, Severity.MODERATE): [
+        "denoise_dncnn",
+        ("denoise_tv", {"weight": 0.08}),
+    ],
+    (DegradationType.LOW_DOSE, Severity.SEVERE): [
+        "denoise_dncnn",
+        ("denoise_tv", {"weight": 0.15}),
+    ],
+    # ---- Sparse-View (undersampling streaks → TV + DnCNN, limited recovery) ----
+    (DegradationType.ARTIFACT_SPARSE_VIEW, Severity.MILD): [
+        ("denoise_tv", {"weight": 0.10}),
+        "denoise_dncnn",
+    ],
+    (DegradationType.ARTIFACT_SPARSE_VIEW, Severity.MODERATE): [
+        ("denoise_tv", {"weight": 0.20}),
+        "denoise_dncnn",
+    ],
+    (DegradationType.ARTIFACT_SPARSE_VIEW, Severity.SEVERE): [
+        ("denoise_tv", {"weight": 0.30}),
+        "denoise_dncnn",
+    ],
+    # ---- Limited-Angle (missing wedge → TV + DnCNN, very limited recovery) ----
+    (DegradationType.ARTIFACT_LIMITED_ANGLE, Severity.MILD): [
+        ("denoise_tv", {"weight": 0.12}),
+        "denoise_dncnn",
+    ],
+    (DegradationType.ARTIFACT_LIMITED_ANGLE, Severity.MODERATE): [
+        ("denoise_tv", {"weight": 0.25}),
+        "denoise_dncnn",
+    ],
+    (DegradationType.ARTIFACT_LIMITED_ANGLE, Severity.SEVERE): [
+        ("denoise_tv", {"weight": 0.35}),
+        "denoise_dncnn",
+    ],
+    # ---- Focal Spot Blur (resolution loss → deblur + sharpen) ----
+    (DegradationType.ARTIFACT_FOCAL_SPOT_BLUR, Severity.MILD): [
+        "denoise_dncnn",
+        "sharpen_usm",
+    ],
+    (DegradationType.ARTIFACT_FOCAL_SPOT_BLUR, Severity.MODERATE): [
+        "denoise_dncnn",
+        ("deblur_richardson_lucy", {"iterations": 15, "psf_sigma": 1.0}),
+    ],
+    (DegradationType.ARTIFACT_FOCAL_SPOT_BLUR, Severity.SEVERE): [
+        "denoise_dncnn",
+        ("deblur_richardson_lucy", {"iterations": 25, "psf_sigma": 1.5}),
+        "sharpen_usm",
+    ],
     # ---- Noise (DnCNN for all severities) ----
     (DegradationType.NOISE, Severity.MILD): ["denoise_dncnn"],
     (DegradationType.NOISE, Severity.MODERATE): ["denoise_dncnn"],
@@ -128,9 +178,13 @@ _DEGRADATION_PRIORITY = {
     DegradationType.ARTIFACT_BEAM_HARDENING: 3,
     DegradationType.ARTIFACT_SCATTER: 4,
     DegradationType.ARTIFACT_TRUNCATION: 5,
-    DegradationType.NOISE: 6,
-    DegradationType.BLUR: 7,
-    DegradationType.LOW_RESOLUTION: 8,
+    DegradationType.ARTIFACT_SPARSE_VIEW: 6,
+    DegradationType.ARTIFACT_LIMITED_ANGLE: 7,
+    DegradationType.ARTIFACT_FOCAL_SPOT_BLUR: 8,
+    DegradationType.LOW_DOSE: 9,
+    DegradationType.NOISE: 10,
+    DegradationType.BLUR: 11,
+    DegradationType.LOW_RESOLUTION: 12,
 }
 
 
@@ -138,6 +192,7 @@ _GENERIC_TYPES = {
     DegradationType.NOISE,
     DegradationType.BLUR,
     DegradationType.LOW_RESOLUTION,
+    DegradationType.LOW_DOSE,
 }
 
 _ARTIFACT_TYPES = {
@@ -147,6 +202,9 @@ _ARTIFACT_TYPES = {
     DegradationType.ARTIFACT_BEAM_HARDENING,
     DegradationType.ARTIFACT_SCATTER,
     DegradationType.ARTIFACT_TRUNCATION,
+    DegradationType.ARTIFACT_SPARSE_VIEW,
+    DegradationType.ARTIFACT_LIMITED_ANGLE,
+    DegradationType.ARTIFACT_FOCAL_SPOT_BLUR,
 }
 
 

@@ -219,7 +219,7 @@ def main() -> None:
     gt_paths = find_real_slices(args.processed_dir, args.num_slices)
     logger.info("Selected %d real CT slices", len(gt_paths))
 
-    artifact_types = ["ring", "motion", "beam_hardening", "scatter", "truncation"]
+    artifact_types = sorted(ARTIFACT_SIMULATOR_REGISTRY.keys())
 
     for si, gt_path in enumerate(gt_paths):
         rel = gt_path.parent.relative_to(args.processed_dir)

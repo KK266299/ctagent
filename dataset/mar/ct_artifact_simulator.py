@@ -110,17 +110,16 @@ class MotionArtifactConfig:
 
 @dataclass
 class BeamHardeningArtifactConfig:
-    alpha: dict[str, tuple[float, float]] = field(default_factory=lambda: {
-        "mild": (0.05, 0.08),
-        "moderate": (0.08, 0.12),
-        "severe": (0.12, 0.15),
+    """束硬化伪影配置 — 通过扰动 BHC 多项式系数模拟不完美校正。
+
+    bhc_scale: BHC 系数的缩放因子。<1 表示欠校正 (cupping), >1 表示过校正。
+    blend: 混合比例: 0=完全 BHC, 1=完全无 BHC (raw polychromatic)。
+    """
+    bhc_scale: dict[str, tuple[float, float]] = field(default_factory=lambda: {
+        "mild": (0.85, 0.95),
+        "moderate": (0.65, 0.85),
+        "severe": (0.40, 0.65),
     })
-    beta: dict[str, tuple[float, float]] = field(default_factory=lambda: {
-        "mild": (0.001, 0.003),
-        "moderate": (0.003, 0.006),
-        "severe": (0.006, 0.010),
-    })
-    bone_emphasis_power: float = 1.5
 
 
 @dataclass
@@ -143,6 +142,11 @@ class TruncationArtifactConfig:
         "mild": (0.05, 0.10),
         "moderate": (0.10, 0.20),
         "severe": (0.20, 0.30),
+    })
+    min_fraction: dict[str, float] = field(default_factory=lambda: {
+        "mild": 0.40,
+        "moderate": 0.20,
+        "severe": 0.05,
     })
     fill_mode: str = "cosine"
 
@@ -209,6 +213,11 @@ class BaseCTArtifactSimulator:
         proj_kvp_noise = add_poisson_noise(
             proj_kvp, cfg.photon_num, cfg.scatter_photon, self.rng
         )
+        electronic_sigma = getattr(cfg, "electronic_sigma", 10.0)
+        if electronic_sigma > 0:
+            proj_kvp_noise = proj_kvp_noise + self.rng.normal(
+                0, electronic_sigma / cfg.photon_num, proj_kvp_noise.shape
+            )
         poly_sinogram = apply_bhc(proj_kvp_noise, self.phy.para_bhc).astype(np.float32)
         poly_ct = self.geo.fbp(poly_sinogram).astype(np.float32)
 
@@ -220,6 +229,8 @@ class BaseCTArtifactSimulator:
             "img_bone": img_bone.astype(np.float32),
             "p_water_kev": p_water_kev.astype(np.float32),
             "p_bone_kev": p_bone_kev.astype(np.float32),
+            "proj_kvp": proj_kvp.astype(np.float32),
+            "proj_kvp_noise": proj_kvp_noise.astype(np.float32),
             "poly_sinogram": poly_sinogram,
             "poly_ct": poly_ct,
         }
@@ -414,16 +425,13 @@ class BeamHardeningArtifactSimulator(BaseCTArtifactSimulator):
         severity: str,
     ) -> tuple[np.ndarray, dict[str, Any]]:
         cfg = self.config
-        alpha = _sample_scalar(cfg.alpha[severity], self.rng)
-        beta = _sample_scalar(cfg.beta[severity], self.rng)
+        bhc_scale = _sample_scalar(cfg.bhc_scale[severity], self.rng)
 
-        bone_weight = _safe_norm(base["p_bone_kev"]) ** cfg.bone_emphasis_power
-        result = sinogram.astype(np.float64).copy()
-        result = result + bone_weight * (alpha * result**2 + beta * result**3)
+        proj_kvp_noise = base["proj_kvp_noise"].astype(np.float64)
+        perturbed_bhc = self.phy.para_bhc * bhc_scale
+        result = apply_bhc(proj_kvp_noise, perturbed_bhc)
         return result.astype(np.float32), {
-            "alpha": round(alpha, 6),
-            "beta": round(beta, 6),
-            "bone_emphasis_power": float(cfg.bone_emphasis_power),
+            "bhc_scale": round(bhc_scale, 4),
         }
 
 
@@ -452,11 +460,13 @@ class ScatterArtifactSimulator(BaseCTArtifactSimulator):
         blur_sigma_mm = _sample_scalar(cfg.blur_sigma_mm[severity], self.rng)
         sigma_bins = max((blur_sigma_mm / 10.0) / max(self.geo.reso, 1e-6), 1.0)
 
-        primary = np.exp(-sinogram.astype(np.float64))
+        proj_raw = base["proj_kvp_noise"].astype(np.float64)
+        primary = np.exp(-proj_raw)
         blurred = gaussian_filter(primary, sigma=(2.0, sigma_bins))
         scatter = scatter_ratio * blurred
         measured = np.clip(primary + scatter, 1e-12, None)
-        result = -np.log(measured)
+        contaminated = -np.log(measured)
+        result = apply_bhc(contaminated, self.phy.para_bhc)
         return result.astype(np.float32), {
             "scatter_ratio": round(scatter_ratio, 6),
             "blur_sigma_mm": round(blur_sigma_mm, 4),
@@ -486,21 +496,25 @@ class TruncationArtifactSimulator(BaseCTArtifactSimulator):
     ) -> tuple[np.ndarray, dict[str, Any]]:
         cfg = self.config
         ratio = _sample_scalar(cfg.truncate_ratio[severity], self.rng)
+        min_frac = cfg.min_fraction[severity]
         bins = sinogram.shape[1]
         width = max(1, int(round(bins * ratio)))
 
         result = sinogram.copy().astype(np.float64)
         if cfg.fill_mode == "cosine":
-            ramp = 0.5 * (1.0 - np.cos(np.linspace(0, np.pi, width, dtype=np.float64)))
+            ramp = min_frac + (1.0 - min_frac) * 0.5 * (
+                1.0 - np.cos(np.linspace(0, np.pi, width, dtype=np.float64))
+            )
             result[:, :width] *= ramp[None, :]
             result[:, -width:] *= ramp[::-1][None, :]
         else:
-            result[:, :width] = 0.0
-            result[:, -width:] = 0.0
+            result[:, :width] *= min_frac
+            result[:, -width:] *= min_frac
 
         return result.astype(np.float32), {
             "truncate_ratio": round(ratio, 5),
             "truncate_width_bins": int(width),
+            "min_fraction": round(min_frac, 4),
             "fill_mode": cfg.fill_mode,
         }
 
@@ -572,12 +586,285 @@ class CompositeArtifactSimulator(BaseCTArtifactSimulator):
         raise NotImplementedError("Use simulate_composed() or simulate_random() for composite mode.")
 
 
+# =========================================================================
+# 采样不足类退化
+# =========================================================================
+
+
+@dataclass
+class SparseViewArtifactConfig:
+    """稀疏视角配置 — num_views 为保留的投影数 (完整通常 640)。"""
+    num_views: dict[str, tuple[int, int]] = field(default_factory=lambda: {
+        "mild": (90, 120),
+        "moderate": (45, 90),
+        "severe": (20, 45),
+    })
+    interpolation: str = "linear"
+
+
+class SparseViewArtifactSimulator(BaseCTArtifactSimulator):
+    """稀疏视角伪影: 均匀抽取投影角 → view aliasing / 条纹伪影。
+
+    参考: TAMP create_sparse_view_ct(), Geometry-Aware DRR
+    """
+    artifact_type = "sparse_view"
+
+    def __init__(
+        self,
+        geometry: CTGeometry,
+        physics: PhysicsParams,
+        config: SparseViewArtifactConfig | None = None,
+        seed: int | None = None,
+        minimal: bool = False,
+    ) -> None:
+        super().__init__(geometry, physics, seed=seed, minimal=minimal)
+        self.config = config or SparseViewArtifactConfig()
+
+    def _apply_to_sinogram(
+        self,
+        base: dict[str, Any],
+        sinogram: np.ndarray,
+        severity: str,
+    ) -> tuple[np.ndarray, dict[str, Any]]:
+        cfg = self.config
+        total_views = sinogram.shape[0]
+        num_views = _sample_int(cfg.num_views[severity], self.rng)
+        num_views = min(num_views, total_views)
+
+        # 均匀采样视角索引
+        indices = np.linspace(0, total_views - 1, num_views, dtype=int)
+        result = np.zeros_like(sinogram, dtype=np.float64)
+        result[indices] = sinogram[indices]
+
+        # 线性插值填充缺失视角
+        if cfg.interpolation == "linear":
+            for k in range(len(indices) - 1):
+                s, e = int(indices[k]), int(indices[k + 1])
+                if e - s <= 1:
+                    continue
+                for j in range(s + 1, e):
+                    alpha = (j - s) / (e - s)
+                    result[j] = (1.0 - alpha) * sinogram[s] + alpha * sinogram[e]
+
+        return result.astype(np.float32), {
+            "num_views": int(num_views),
+            "total_views": int(total_views),
+            "subsample_ratio": round(num_views / total_views, 4),
+            "interpolation": cfg.interpolation,
+        }
+
+
+@dataclass
+class LimitedAngleArtifactConfig:
+    """有限角配置 — angle_range_deg 为可用角度范围 (完整 360°)。"""
+    angle_range_deg: dict[str, tuple[float, float]] = field(default_factory=lambda: {
+        "mild": (140.0, 160.0),
+        "moderate": (100.0, 140.0),
+        "severe": (60.0, 100.0),
+    })
+    transition_fraction: float = 0.1
+
+
+class LimitedAngleArtifactSimulator(BaseCTArtifactSimulator):
+    """有限角伪影: 限制角度范围 → 方向性伪影 + 不适定性。
+
+    参考: EPNet (MICCAI 2021), TAMP create_limited_angle_ct()
+    """
+    artifact_type = "limited_angle"
+
+    def __init__(
+        self,
+        geometry: CTGeometry,
+        physics: PhysicsParams,
+        config: LimitedAngleArtifactConfig | None = None,
+        seed: int | None = None,
+        minimal: bool = False,
+    ) -> None:
+        super().__init__(geometry, physics, seed=seed, minimal=minimal)
+        self.config = config or LimitedAngleArtifactConfig()
+
+    def _apply_to_sinogram(
+        self,
+        base: dict[str, Any],
+        sinogram: np.ndarray,
+        severity: str,
+    ) -> tuple[np.ndarray, dict[str, Any]]:
+        cfg = self.config
+        total_views = sinogram.shape[0]
+        angle_range = _sample_scalar(cfg.angle_range_deg[severity], self.rng)
+        available = max(1, int(total_views * angle_range / 360.0))
+        start = int(self.rng.integers(0, max(1, total_views - available)))
+        end = min(start + available, total_views)
+
+        result = np.zeros_like(sinogram, dtype=np.float64)
+        result[start:end] = sinogram[start:end]
+
+        # 边界 cosine 过渡 — 减少 Gibbs 效应
+        tw = max(1, int(available * cfg.transition_fraction))
+        ramp = 0.5 * (1.0 - np.cos(np.linspace(0, np.pi, tw)))
+        for i, w in enumerate(ramp):
+            if start + i < total_views:
+                result[start + i] *= w
+        for i, w in enumerate(ramp[::-1]):
+            idx = end - tw + i
+            if 0 <= idx < total_views:
+                result[idx] *= w
+
+        return result.astype(np.float32), {
+            "angle_range_deg": round(angle_range, 2),
+            "available_views": int(available),
+            "start_idx": int(start),
+            "end_idx": int(end),
+            "transition_width": int(tw),
+        }
+
+
+# =========================================================================
+# 低剂量噪声类退化
+# =========================================================================
+
+
+@dataclass
+class LowDoseNoiseConfig:
+    """低剂量噪声配置 — dose_fraction 为相对满剂量的比例。"""
+    dose_fraction: dict[str, tuple[float, float]] = field(default_factory=lambda: {
+        "mild": (0.20, 0.50),
+        "moderate": (0.05, 0.20),
+        "severe": (0.01, 0.05),
+    })
+    electronic_sigma: dict[str, float] = field(default_factory=lambda: {
+        "mild": 5.0,
+        "moderate": 10.0,
+        "severe": 20.0,
+    })
+
+
+class LowDoseNoiseSimulator(BaseCTArtifactSimulator):
+    """低剂量噪声: 在 sinogram 域按剂量比例重新采样 Poisson + Gaussian 噪声。
+
+    注意: base pipeline 已在满剂量下加过 Poisson 噪声，此处将 sinogram
+    转回透射域后以更低光子数重新采样，模拟低剂量采集。
+
+    参考: LD-CT-simulation, RTK AddNoise, XCIST quantum+electronic noise
+    """
+    artifact_type = "low_dose"
+
+    def __init__(
+        self,
+        geometry: CTGeometry,
+        physics: PhysicsParams,
+        config: LowDoseNoiseConfig | None = None,
+        seed: int | None = None,
+        minimal: bool = False,
+    ) -> None:
+        super().__init__(geometry, physics, seed=seed, minimal=minimal)
+        self.config = config or LowDoseNoiseConfig()
+
+    def _apply_to_sinogram(
+        self,
+        base: dict[str, Any],
+        sinogram: np.ndarray,
+        severity: str,
+    ) -> tuple[np.ndarray, dict[str, Any]]:
+        cfg = self.config
+        dose_frac = _sample_scalar(cfg.dose_fraction[severity], self.rng)
+        e_sigma = cfg.electronic_sigma[severity]
+        photon_num = self.phy.config.photon_num * dose_frac
+
+        proj_kvp = base["proj_kvp"].astype(np.float64)
+
+        noisy = add_poisson_noise(
+            proj_kvp, photon_num, self.phy.config.scatter_photon, self.rng
+        )
+        noisy += self.rng.normal(0, e_sigma / max(photon_num, 1.0), noisy.shape)
+        result = apply_bhc(noisy, self.phy.para_bhc)
+        return result.astype(np.float32), {
+            "dose_fraction": round(dose_frac, 4),
+            "effective_photon_num": float(photon_num),
+            "electronic_sigma": float(e_sigma),
+        }
+
+
+# =========================================================================
+# 探测器 / 系统分辨率类退化
+# =========================================================================
+
+
+@dataclass
+class FocalSpotBlurConfig:
+    """焦点模糊配置 — sigma 为探测器方向 (bins) 上的高斯模糊宽度。"""
+    blur_sigma_bins: dict[str, tuple[float, float]] = field(default_factory=lambda: {
+        "mild": (0.5, 1.0),
+        "moderate": (1.0, 2.0),
+        "severe": (2.0, 4.0),
+    })
+    axial_sigma_views: dict[str, tuple[float, float]] = field(default_factory=lambda: {
+        "mild": (0.0, 0.3),
+        "moderate": (0.3, 0.8),
+        "severe": (0.8, 1.5),
+    })
+
+
+class FocalSpotBlurSimulator(BaseCTArtifactSimulator):
+    """焦点 / 探测器模糊: 沿探测器方向 + 可选轴向模糊。
+
+    模拟 focal spot size、detector cell width、detector crosstalk
+    导致的空间分辨率退化。
+
+    参考: XCIST focal spot / detector column width / optical crosstalk
+    """
+    artifact_type = "focal_spot_blur"
+
+    def __init__(
+        self,
+        geometry: CTGeometry,
+        physics: PhysicsParams,
+        config: FocalSpotBlurConfig | None = None,
+        seed: int | None = None,
+        minimal: bool = False,
+    ) -> None:
+        super().__init__(geometry, physics, seed=seed, minimal=minimal)
+        self.config = config or FocalSpotBlurConfig()
+
+    def _apply_to_sinogram(
+        self,
+        base: dict[str, Any],
+        sinogram: np.ndarray,
+        severity: str,
+    ) -> tuple[np.ndarray, dict[str, Any]]:
+        cfg = self.config
+        sigma_bins = _sample_scalar(cfg.blur_sigma_bins[severity], self.rng)
+        sigma_views = _sample_scalar(cfg.axial_sigma_views[severity], self.rng)
+
+        result = sinogram.astype(np.float64)
+        # 探测器方向 (axis=1) 模糊 — focal spot + detector cell
+        if sigma_bins > 0.01:
+            result = gaussian_filter1d(result, sigma=sigma_bins, axis=1)
+        # 视角方向 (axis=0) 轻微模糊 — 旋转采样间隔效应
+        if sigma_views > 0.01:
+            result = gaussian_filter1d(result, sigma=sigma_views, axis=0)
+
+        return result.astype(np.float32), {
+            "blur_sigma_bins": round(sigma_bins, 4),
+            "axial_sigma_views": round(sigma_views, 4),
+        }
+
+
+# =========================================================================
+# 注册表 & 工厂
+# =========================================================================
+
+
 ARTIFACT_SIMULATOR_REGISTRY = {
     "ring": RingArtifactSimulator,
     "motion": MotionArtifactSimulator,
     "beam_hardening": BeamHardeningArtifactSimulator,
     "scatter": ScatterArtifactSimulator,
     "truncation": TruncationArtifactSimulator,
+    "sparse_view": SparseViewArtifactSimulator,
+    "limited_angle": LimitedAngleArtifactSimulator,
+    "low_dose": LowDoseNoiseSimulator,
+    "focal_spot_blur": FocalSpotBlurSimulator,
 }
 
 

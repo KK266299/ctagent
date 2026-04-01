@@ -46,7 +46,7 @@ physics:
   material_id: 0
 
 artifacts:
-  enabled_types: ["ring", "motion", "beam_hardening", "scatter", "truncation"]
+  enabled_types: ["ring", "motion", "beam_hardening", "scatter", "truncation", "sparse_view", "limited_angle", "low_dose", "focal_spot_blur"]
   severities: ["mild", "moderate", "severe"]
 
 batch:

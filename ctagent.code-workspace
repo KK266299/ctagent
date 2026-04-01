@@ -2,27 +2,27 @@
     "folders": [
         {
             "name": "ctagent",
-            "path": "/home/liuxinyao/project/ctagent"
+            "path": "."
         },
         {
             "name": "cq500_processed",
-            "path": "/home/liuxinyao/data/cq500_processed"
+            "path": "../../data/cq500_processed"
         },
         {
             "name": "cq500_raw",
-            "path": "/home/liuxinyao/data/cq500"
+            "path": "../../data/cq500"
         },
         {
             "name": "ctagent_try_output",
-            "path": "/home/liuxinyao/project/ctagent/try_output"
+            "path": "try_output"
         },
         {
             "name": "ctagent_results",
-            "path": "/home/liuxinyao/project/ctagent/results"
+            "path": "results"
         },
         {
             "name": "ctagent_logs",
-            "path": "/home/liuxinyao/output/ctagent"
+            "path": "../../output/ctagent"
         }
     ],
     "settings": {

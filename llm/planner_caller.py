@@ -92,7 +92,7 @@ class PlannerCaller:
     def _default_tool_descriptions() -> dict[str, str]:
         return {
             "clip_extreme": "Clip μ values to [0, 0.55]. MUST be first step for metal artifact images. Zero cost.",
-            "denoise_tv": "Total Variation: strong edge-preserving, for moderate-severe noise",
+            "denoise_tv": "Total Variation: strong edge-preserving, for moderate-severe noise. Also effective for streak artifacts (sparse-view, limited-angle). Params: weight (float, 0.05-0.35).",
             "denoise_wavelet": "Wavelet thresholding (BayesShrink): multi-scale, preserves fine CT structures",
             "denoise_bm3d": "BM3D denoising: best classical denoiser for PSNR",
             "denoise_bilateral": "Bilateral filter: edge-preserving, for noise and light artifacts",
@@ -100,11 +100,11 @@ class PlannerCaller:
             "denoise_median": "Median filter: effective against impulse noise and streak artifacts",
             "denoise_gaussian": "Gaussian filter denoising: fast but blurs edges",
             "denoise_wiener": "Wiener filter: frequency-domain, optimal for uniform Gaussian noise",
-            "deblur_richardson_lucy": "Richardson-Lucy deconvolution: restores PSF-blurred images",
-            "sharpen_usm": "Unsharp mask sharpening for blurred images",
+            "deblur_richardson_lucy": "Richardson-Lucy deconvolution: restores PSF-blurred images. Params: iterations (int, 5-30), psf_sigma (float, 0.5-2.0). Use for focal spot blur.",
+            "sharpen_usm": "Unsharp mask sharpening for blurred images. Params: amount (float, 0.5-3.0). Use for mild focal spot blur or post-deblur enhancement.",
             "enhance_laplacian": "Laplacian edge enhancement: boosts detail, may amplify noise",
             "inpaint_biharmonic": "Biharmonic inpainting: fills small artifact/damaged regions",
-            "denoise_dncnn": "DnCNN deep learning denoiser: best PSNR/SSIM among all denoisers, trained on CT data. Use for moderate-severe noise.",
+            "denoise_dncnn": "DnCNN deep learning denoiser: best PSNR/SSIM among all denoisers, trained on CT data. Effective for low-dose noise, post-processing after TV for undersampling artifacts.",
             # --- CT artifact-specific tools ---
             "ring_removal_polar": "Remove ring artifacts via polar-coordinate median filtering. Params: sigma (float, 1-5). Use for ring/concentric-band artifacts.",
             "ring_removal_wavelet": "Remove ring artifacts via wavelet decomposition. Params: level (int, 2-6), sigma (float, 1-5). Use for severe ring artifacts.",

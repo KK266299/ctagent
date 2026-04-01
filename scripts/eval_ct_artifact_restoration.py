@@ -2,8 +2,8 @@
 """CT 伪影检测→修复→评估 端到端流程。
 
 在真实 CQ500 CT 上:
-  1. 用 ct_artifact_simulator 生成 5 类伪影 (ring/motion/beam_hardening/scatter/truncation)
-  2. 用 DegradationDetector 检测伪影类型
+  1. 用 ct_artifact_simulator 生成 9 类伪影 + 金属伪影 (共 10 类)
+  2. 用 DegradationDetector 或 LLM-based 检测器检测伪影类型
   3. 用 Planner 规划修复工具链 (rule-based 或 LLM-guided)
   4. 用 RestorationTool 执行修复
   5. 计算 PSNR/SSIM 评判修复效果
@@ -188,14 +188,17 @@ def main() -> None:
     # --- Planner mode ---
     parser.add_argument("--planner", choices=["rule", "llm"], default="rule",
                         help="Planner mode: rule (RuleBasedPlanner) or llm (LLM-guided AgentBasedPlanner)")
+    # --- Detector mode ---
+    parser.add_argument("--detector", choices=["rule", "llm"], default="rule",
+                        help="Detector mode: rule (threshold-based) or llm (VLM-based artifact detection)")
     parser.add_argument("--llm-model", default="qwen/qwen-2.5-vl-72b-instruct",
-                        help="LLM model name (for --planner llm)")
+                        help="LLM model name (for --planner llm or --detector llm)")
     parser.add_argument("--llm-base-url", default="https://openrouter.ai/api/v1",
-                        help="LLM API base URL (for --planner llm)")
+                        help="LLM API base URL (for --planner llm or --detector llm)")
     parser.add_argument("--llm-temperature", type=float, default=0.1,
-                        help="LLM temperature (for --planner llm)")
+                        help="LLM temperature (for --planner llm or --detector llm)")
     parser.add_argument("--llm-max-tokens", type=int, default=1024,
-                        help="LLM max tokens (for --planner llm)")
+                        help="LLM max tokens (for --planner llm or --detector llm)")
     args = parser.parse_args()
 
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
@@ -236,15 +239,14 @@ def main() -> None:
     phy = PhysicsParams(phy_cfg)
     phy.load()
 
-    detector = DegradationDetector()
     restoration = RestorationTool()
-    use_llm = args.planner == "llm"
+    use_llm_planner = args.planner == "llm"
+    use_llm_detector = args.detector == "llm"
 
-    if use_llm:
+    # --- LLM client (shared by planner and detector if both use llm) ---
+    llm_client = None
+    if use_llm_planner or use_llm_detector:
         from llm.api_client import LLMConfig, create_client
-        from llm.planner_caller import PlannerCaller
-        from src.planner.agent_based import AgentBasedPlanner
-
         llm_cfg = LLMConfig(
             provider="openai",
             model=args.llm_model,
@@ -253,6 +255,22 @@ def main() -> None:
             max_tokens=args.llm_max_tokens,
         )
         llm_client = create_client(llm_cfg)
+
+    # --- Detector ---
+    if use_llm_detector:
+        from src.degradations.llm_detector import LLMDegradationDetector
+        detector = LLMDegradationDetector(llm_client)
+        logger.info("Using LLM-based detector: model=%s", args.llm_model)
+    else:
+        detector = DegradationDetector()
+        logger.info("Using rule-based detector")
+
+    use_llm = use_llm_planner
+
+    if use_llm:
+        from llm.planner_caller import PlannerCaller
+        from src.planner.agent_based import AgentBasedPlanner
+
         planner_caller = PlannerCaller(llm_client=llm_client, max_steps=4)
         planner = AgentBasedPlanner(planner_caller=planner_caller, max_chain=4)
         logger.info("Using LLM-guided planner: model=%s, base_url=%s",
@@ -269,7 +287,10 @@ def main() -> None:
 
     do_save_images = args.save_images if args.save_images is not None else (not args.no_save_images and len(gt_paths) <= 50)
 
-    artifact_types = ["ring", "motion", "beam_hardening", "scatter", "truncation"]
+    artifact_types = [
+        "ring", "motion", "beam_hardening", "scatter", "truncation",
+        "low_dose", "sparse_view", "limited_angle", "focal_spot_blur",
+    ]
     severities = ["mild", "moderate", "severe"]
 
     all_results: list[dict[str, Any]] = []
@@ -423,9 +444,12 @@ def main() -> None:
     for r in all_results:
         groups[(r["artifact_type"], r["severity"])].append(r)
 
-    artifact_types = ["ring", "motion", "beam_hardening", "scatter", "truncation"]
+    artifact_types_summary = [
+        "ring", "motion", "beam_hardening", "scatter", "truncation",
+        "low_dose", "sparse_view", "limited_angle", "focal_spot_blur",
+    ]
     severities = ["mild", "moderate", "severe"]
-    for art in artifact_types:
+    for art in artifact_types_summary:
         for sev in severities:
             g = groups.get((art, sev), [])
             if not g:
@@ -445,7 +469,7 @@ def main() -> None:
     header = f"{'Type':<20} {'N':>5} {'Skip':>5} {'Act':>5} {'Impr%':>6} {'AvgΔPSNR':>9} {'AvgΔSSIM':>10}"
     logger.info(header)
     logger.info("-" * 65)
-    for art in artifact_types:
+    for art in artifact_types_summary:
         g = [r for r in all_results if r["artifact_type"] == art]
         if not g:
             continue

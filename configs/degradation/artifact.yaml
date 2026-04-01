@@ -60,3 +60,36 @@ degradation:
         mild: [0.05, 0.10]
         moderate: [0.10, 0.20]
         severe: [0.20, 0.30]
+    sparse_view_artifact:
+      enabled: true
+      severity: ["mild", "moderate", "severe"]
+      num_views:
+        mild: [90, 120]
+        moderate: [45, 90]
+        severe: [20, 45]
+      interpolation: "linear"
+    limited_angle_artifact:
+      enabled: true
+      severity: ["mild", "moderate", "severe"]
+      angle_range_deg:
+        mild: [140.0, 160.0]
+        moderate: [100.0, 140.0]
+        severe: [60.0, 100.0]
+    low_dose_artifact:
+      enabled: true
+      severity: ["mild", "moderate", "severe"]
+      dose_fraction:
+        mild: [0.20, 0.50]
+        moderate: [0.05, 0.20]
+        severe: [0.01, 0.05]
+      electronic_sigma:
+        mild: 5.0
+        moderate: 10.0
+        severe: 20.0
+    focal_spot_blur_artifact:
+      enabled: true
+      severity: ["mild", "moderate", "severe"]
+      blur_sigma_bins:
+        mild: [0.5, 1.0]
+        moderate: [1.0, 2.0]
+        severe: [2.0, 4.0]
