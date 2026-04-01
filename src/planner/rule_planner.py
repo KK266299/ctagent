@@ -89,15 +89,15 @@ DEFAULT_RULES: dict[tuple[DegradationType, Severity], list] = {
         ("truncation_correction_tv", {"weight": 0.15}),
         "denoise_dncnn",
     ],
-    # ---- Low-Dose Noise (Poisson noise dominant → DnCNN + TV) ----
-    (DegradationType.LOW_DOSE, Severity.MILD): ["denoise_dncnn"],
+    # ---- Low-Dose Noise (Poisson noise → BM3D more robust than DnCNN for non-Gaussian) ----
+    (DegradationType.LOW_DOSE, Severity.MILD): ["denoise_bm3d"],
     (DegradationType.LOW_DOSE, Severity.MODERATE): [
-        "denoise_dncnn",
-        ("denoise_tv", {"weight": 0.08}),
+        "denoise_bm3d",
+        ("denoise_tv", {"weight": 0.12}),
     ],
     (DegradationType.LOW_DOSE, Severity.SEVERE): [
-        "denoise_dncnn",
-        ("denoise_tv", {"weight": 0.15}),
+        ("denoise_tv", {"weight": 0.20}),
+        "denoise_bm3d",
     ],
     # ---- Sparse-View (undersampling streaks → TV + DnCNN, limited recovery) ----
     (DegradationType.ARTIFACT_SPARSE_VIEW, Severity.MILD): [

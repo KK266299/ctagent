@@ -68,43 +68,43 @@ class ArtifactSimulationResult:
 @dataclass
 class RingArtifactConfig:
     bad_detector_fraction: dict[str, tuple[float, float]] = field(default_factory=lambda: {
-        "mild": (0.005, 0.010),
-        "moderate": (0.010, 0.020),
-        "severe": (0.020, 0.030),
+        "mild": (0.010, 0.025),
+        "moderate": (0.025, 0.050),
+        "severe": (0.050, 0.080),
     })
     gain_range: dict[str, tuple[float, float]] = field(default_factory=lambda: {
-        "mild": (0.95, 1.05),
-        "moderate": (0.90, 1.10),
-        "severe": (0.85, 1.15),
+        "mild": (0.85, 1.15),
+        "moderate": (0.75, 1.25),
+        "severe": (0.65, 1.35),
     })
     additive_bias_scale: dict[str, float] = field(default_factory=lambda: {
-        "mild": 0.003,
-        "moderate": 0.006,
-        "severe": 0.010,
+        "mild": 0.010,
+        "moderate": 0.020,
+        "severe": 0.035,
     })
     drift_strength: dict[str, float] = field(default_factory=lambda: {
-        "mild": 0.002,
-        "moderate": 0.004,
-        "severe": 0.008,
+        "mild": 0.008,
+        "moderate": 0.015,
+        "severe": 0.025,
     })
 
 
 @dataclass
 class MotionArtifactConfig:
     motion_fraction: dict[str, tuple[float, float]] = field(default_factory=lambda: {
-        "mild": (0.08, 0.12),
-        "moderate": (0.12, 0.20),
-        "severe": (0.20, 0.30),
+        "mild": (0.15, 0.25),
+        "moderate": (0.25, 0.35),
+        "severe": (0.35, 0.50),
     })
     translation_mm: dict[str, tuple[float, float]] = field(default_factory=lambda: {
-        "mild": (1.0, 5.0),
-        "moderate": (5.0, 10.0),
-        "severe": (10.0, 15.0),
+        "mild": (5.0, 12.0),
+        "moderate": (12.0, 20.0),
+        "severe": (20.0, 30.0),
     })
     ghost_blend: dict[str, float] = field(default_factory=lambda: {
-        "mild": 0.15,
-        "moderate": 0.25,
-        "severe": 0.35,
+        "mild": 0.25,
+        "moderate": 0.35,
+        "severe": 0.45,
     })
 
 
@@ -116,18 +116,28 @@ class BeamHardeningArtifactConfig:
     blend: 混合比例: 0=完全 BHC, 1=完全无 BHC (raw polychromatic)。
     """
     bhc_scale: dict[str, tuple[float, float]] = field(default_factory=lambda: {
-        "mild": (0.85, 0.95),
-        "moderate": (0.65, 0.85),
+        "mild": (0.55, 0.75),
+        "moderate": (0.30, 0.55),
+        "severe": (0.10, 0.30),
+    })
+    raw_blend: dict[str, tuple[float, float]] = field(default_factory=lambda: {
+        "mild": (0.10, 0.20),
+        "moderate": (0.20, 0.40),
         "severe": (0.40, 0.65),
+    })
+    streak_alpha: dict[str, tuple[float, float]] = field(default_factory=lambda: {
+        "mild": (0.002, 0.005),
+        "moderate": (0.005, 0.012),
+        "severe": (0.012, 0.025),
     })
 
 
 @dataclass
 class ScatterArtifactConfig:
     scatter_ratio: dict[str, tuple[float, float]] = field(default_factory=lambda: {
-        "mild": (0.01, 0.03),
-        "moderate": (0.03, 0.06),
-        "severe": (0.06, 0.10),
+        "mild": (0.08, 0.18),
+        "moderate": (0.18, 0.35),
+        "severe": (0.35, 0.60),
     })
     blur_sigma_mm: dict[str, tuple[float, float]] = field(default_factory=lambda: {
         "mild": (30.0, 45.0),
@@ -139,14 +149,14 @@ class ScatterArtifactConfig:
 @dataclass
 class TruncationArtifactConfig:
     truncate_ratio: dict[str, tuple[float, float]] = field(default_factory=lambda: {
-        "mild": (0.05, 0.10),
-        "moderate": (0.10, 0.20),
-        "severe": (0.20, 0.30),
+        "mild": (0.38, 0.44),
+        "moderate": (0.42, 0.48),
+        "severe": (0.48, 0.50),
     })
     min_fraction: dict[str, float] = field(default_factory=lambda: {
-        "mild": 0.40,
-        "moderate": 0.20,
-        "severe": 0.05,
+        "mild": 0.00,
+        "moderate": 0.00,
+        "severe": 0.00,
     })
     fill_mode: str = "cosine"
 
@@ -426,12 +436,25 @@ class BeamHardeningArtifactSimulator(BaseCTArtifactSimulator):
     ) -> tuple[np.ndarray, dict[str, Any]]:
         cfg = self.config
         bhc_scale = _sample_scalar(cfg.bhc_scale[severity], self.rng)
+        raw_blend = _sample_scalar(cfg.raw_blend[severity], self.rng)
+        streak_alpha = _sample_scalar(cfg.streak_alpha[severity], self.rng)
 
         proj_kvp_noise = base["proj_kvp_noise"].astype(np.float64)
         perturbed_bhc = self.phy.para_bhc * bhc_scale
-        result = apply_bhc(proj_kvp_noise, perturbed_bhc)
+        corrected = apply_bhc(proj_kvp_noise, perturbed_bhc)
+        result = (1.0 - raw_blend) * corrected + raw_blend * proj_kvp_noise
+
+        if streak_alpha > 0:
+            bone_proj = base["p_bone_kev"].astype(np.float64)
+            views = bone_proj.shape[0]
+            view_noise = 1.0 + 0.5 * self.rng.standard_normal((views, 1))
+            streak = streak_alpha * (bone_proj ** 2) * view_noise
+            result -= streak
+
         return result.astype(np.float32), {
             "bhc_scale": round(bhc_scale, 4),
+            "raw_blend": round(raw_blend, 4),
+            "streak_alpha": round(streak_alpha, 5),
         }
 
 
@@ -603,9 +626,11 @@ class SparseViewArtifactConfig:
 
 
 class SparseViewArtifactSimulator(BaseCTArtifactSimulator):
-    """稀疏视角伪影: 均匀抽取投影角 → view aliasing / 条纹伪影。
+    """稀疏视角伪影: 用减少的角度集做前向投影 + FBP。
 
-    参考: TAMP create_sparse_view_ct(), Geometry-Aware DRR
+    参考: MAR_SynCode simulate_data_angle.py IntegratedScannerV2.get_sparse_angles
+    物理正确做法: 不是在满角 sinogram 上抽行，而是真正用稀疏角度做
+    前向投影 → 加噪 → FBP 重建，FBP 重建器知道角度减少了。
     """
     artifact_type = "sparse_view"
 
@@ -620,38 +645,68 @@ class SparseViewArtifactSimulator(BaseCTArtifactSimulator):
         super().__init__(geometry, physics, seed=seed, minimal=minimal)
         self.config = config or SparseViewArtifactConfig()
 
+    def simulate(
+        self,
+        hu_image: np.ndarray,
+        severity: str = "moderate",
+    ) -> ArtifactSimulationResult:
+        """Override: 用自定义角度几何做物理正确的稀疏角仿真。"""
+        if severity not in SEVERITY_LEVELS:
+            raise ValueError(f"Unknown severity={severity!r}")
+        base = self._prepare_base_state(hu_image)
+
+        cfg = self.config
+        total_views = self.geo.config.num_angles
+        num_views = _sample_int(cfg.num_views[severity], self.rng)
+        num_views = min(num_views, total_views)
+
+        angles_rad = np.linspace(0, 2 * np.pi, num_views, endpoint=False).astype(np.float64)
+        fwd_sparse, fbp_sparse = self.geo.build_custom_angle_ops(angles_rad)
+
+        mu_image = base["mu_image"].astype(np.float64)
+        sparse_sino = fwd_sparse(mu_image)
+
+        poisson_rate = self.phy.config.photon_num
+        gaussian_rate = getattr(self.phy.config, "electronic_sigma", 10.0) / poisson_rate
+        expected = np.round(np.exp(-sparse_sino) * poisson_rate).astype(np.float64)
+        expected = np.maximum(expected + 20, 1.0)
+        actual = self.rng.poisson(expected).astype(np.float64)
+        actual = np.maximum(actual, 1.0)
+        noisy_sino = -np.log(actual / poisson_rate)
+        noisy_sino += self.rng.normal(0, gaussian_rate, noisy_sino.shape)
+
+        ma_ct = fbp_sparse(noisy_sino.astype(np.float32)).astype(np.float32)
+
+        metadata = {
+            "num_views": int(num_views),
+            "total_views": int(total_views),
+            "subsample_ratio": round(num_views / total_views, 4),
+        }
+        artifact_result = {
+            "artifact_type": self.artifact_type,
+            "severity": severity,
+            "ma_CT": ma_ct,
+            "ma_sinogram": noisy_sino.astype(np.float32),
+            "params": metadata,
+        }
+        if not self.minimal:
+            artifact_result["poly_CT"] = base["poly_ct"]
+            artifact_result["poly_sinogram"] = base["poly_sinogram"]
+
+        return ArtifactSimulationResult(
+            gt_ct=base["gt_ct"],
+            poly_sinogram=base["poly_sinogram"],
+            poly_ct=base["poly_ct"],
+            artifact_results=[artifact_result],
+        )
+
     def _apply_to_sinogram(
         self,
         base: dict[str, Any],
         sinogram: np.ndarray,
         severity: str,
     ) -> tuple[np.ndarray, dict[str, Any]]:
-        cfg = self.config
-        total_views = sinogram.shape[0]
-        num_views = _sample_int(cfg.num_views[severity], self.rng)
-        num_views = min(num_views, total_views)
-
-        # 均匀采样视角索引
-        indices = np.linspace(0, total_views - 1, num_views, dtype=int)
-        result = np.zeros_like(sinogram, dtype=np.float64)
-        result[indices] = sinogram[indices]
-
-        # 线性插值填充缺失视角
-        if cfg.interpolation == "linear":
-            for k in range(len(indices) - 1):
-                s, e = int(indices[k]), int(indices[k + 1])
-                if e - s <= 1:
-                    continue
-                for j in range(s + 1, e):
-                    alpha = (j - s) / (e - s)
-                    result[j] = (1.0 - alpha) * sinogram[s] + alpha * sinogram[e]
-
-        return result.astype(np.float32), {
-            "num_views": int(num_views),
-            "total_views": int(total_views),
-            "subsample_ratio": round(num_views / total_views, 4),
-            "interpolation": cfg.interpolation,
-        }
+        raise NotImplementedError("SparseView uses override simulate(); not sinogram manipulation.")
 
 
 @dataclass
@@ -666,9 +721,11 @@ class LimitedAngleArtifactConfig:
 
 
 class LimitedAngleArtifactSimulator(BaseCTArtifactSimulator):
-    """有限角伪影: 限制角度范围 → 方向性伪影 + 不适定性。
+    """有限角伪影: 用有限角度范围做前向投影 + FBP。
 
-    参考: EPNet (MICCAI 2021), TAMP create_limited_angle_ct()
+    参考: MAR_SynCode simulate_data_angle.py IntegratedScannerV2.get_limited_angles
+    物理正确做法: 用有限角度集做前向投影 → 加噪 → FBP，
+    FBP 重建器使用与采集一致的角度，产生真实的方向性伪影。
     """
     artifact_type = "limited_angle"
 
@@ -683,40 +740,69 @@ class LimitedAngleArtifactSimulator(BaseCTArtifactSimulator):
         super().__init__(geometry, physics, seed=seed, minimal=minimal)
         self.config = config or LimitedAngleArtifactConfig()
 
+    def simulate(
+        self,
+        hu_image: np.ndarray,
+        severity: str = "moderate",
+    ) -> ArtifactSimulationResult:
+        """Override: 用自定义角度几何做物理正确的有限角仿真。"""
+        if severity not in SEVERITY_LEVELS:
+            raise ValueError(f"Unknown severity={severity!r}")
+        base = self._prepare_base_state(hu_image)
+
+        cfg = self.config
+        full_views = self.geo.config.num_angles
+        angle_range_deg = _sample_scalar(cfg.angle_range_deg[severity], self.rng)
+        angle_range_rad = angle_range_deg / 180.0 * np.pi
+        num_views = max(2, int(full_views * angle_range_deg / 360.0))
+
+        angles_rad = np.linspace(0, angle_range_rad, num_views, endpoint=False).astype(np.float64)
+        fwd_la, fbp_la = self.geo.build_custom_angle_ops(angles_rad)
+
+        mu_image = base["mu_image"].astype(np.float64)
+        la_sino = fwd_la(mu_image)
+
+        poisson_rate = self.phy.config.photon_num
+        gaussian_rate = getattr(self.phy.config, "electronic_sigma", 10.0) / poisson_rate
+        expected = np.round(np.exp(-la_sino) * poisson_rate).astype(np.float64)
+        expected = np.maximum(expected + 20, 1.0)
+        actual = self.rng.poisson(expected).astype(np.float64)
+        actual = np.maximum(actual, 1.0)
+        noisy_sino = -np.log(actual / poisson_rate)
+        noisy_sino += self.rng.normal(0, gaussian_rate, noisy_sino.shape)
+
+        ma_ct = fbp_la(noisy_sino.astype(np.float32)).astype(np.float32)
+
+        metadata = {
+            "angle_range_deg": round(angle_range_deg, 2),
+            "num_views": int(num_views),
+            "full_views": int(full_views),
+        }
+        artifact_result = {
+            "artifact_type": self.artifact_type,
+            "severity": severity,
+            "ma_CT": ma_ct,
+            "ma_sinogram": noisy_sino.astype(np.float32),
+            "params": metadata,
+        }
+        if not self.minimal:
+            artifact_result["poly_CT"] = base["poly_ct"]
+            artifact_result["poly_sinogram"] = base["poly_sinogram"]
+
+        return ArtifactSimulationResult(
+            gt_ct=base["gt_ct"],
+            poly_sinogram=base["poly_sinogram"],
+            poly_ct=base["poly_ct"],
+            artifact_results=[artifact_result],
+        )
+
     def _apply_to_sinogram(
         self,
         base: dict[str, Any],
         sinogram: np.ndarray,
         severity: str,
     ) -> tuple[np.ndarray, dict[str, Any]]:
-        cfg = self.config
-        total_views = sinogram.shape[0]
-        angle_range = _sample_scalar(cfg.angle_range_deg[severity], self.rng)
-        available = max(1, int(total_views * angle_range / 360.0))
-        start = int(self.rng.integers(0, max(1, total_views - available)))
-        end = min(start + available, total_views)
-
-        result = np.zeros_like(sinogram, dtype=np.float64)
-        result[start:end] = sinogram[start:end]
-
-        # 边界 cosine 过渡 — 减少 Gibbs 效应
-        tw = max(1, int(available * cfg.transition_fraction))
-        ramp = 0.5 * (1.0 - np.cos(np.linspace(0, np.pi, tw)))
-        for i, w in enumerate(ramp):
-            if start + i < total_views:
-                result[start + i] *= w
-        for i, w in enumerate(ramp[::-1]):
-            idx = end - tw + i
-            if 0 <= idx < total_views:
-                result[idx] *= w
-
-        return result.astype(np.float32), {
-            "angle_range_deg": round(angle_range, 2),
-            "available_views": int(available),
-            "start_idx": int(start),
-            "end_idx": int(end),
-            "transition_width": int(tw),
-        }
+        raise NotImplementedError("LimitedAngle uses override simulate(); not sinogram manipulation.")
 
 
 # =========================================================================
@@ -726,16 +812,21 @@ class LimitedAngleArtifactSimulator(BaseCTArtifactSimulator):
 
 @dataclass
 class LowDoseNoiseConfig:
-    """低剂量噪声配置 — dose_fraction 为相对满剂量的比例。"""
+    """低剂量噪声配置 — dose_fraction 为相对满剂量的比例。
+
+    photon_num=2e7 时, MAR_SynCode 参考:
+      I0=1e5 → SSIM≈0.94,  I0=5e4 → 0.89,  I0=1e4 → 0.65,  I0=1e3 → 0.22
+    dose_fraction = I0 / photon_num.
+    """
     dose_fraction: dict[str, tuple[float, float]] = field(default_factory=lambda: {
-        "mild": (0.20, 0.50),
-        "moderate": (0.05, 0.20),
-        "severe": (0.01, 0.05),
+        "mild": (3e-4, 1.5e-3),
+        "moderate": (8e-5, 3e-4),
+        "severe": (1e-5, 8e-5),
     })
     electronic_sigma: dict[str, float] = field(default_factory=lambda: {
-        "mild": 5.0,
-        "moderate": 10.0,
-        "severe": 20.0,
+        "mild": 20.0,
+        "moderate": 35.0,
+        "severe": 60.0,
     })
 
 
@@ -794,14 +885,14 @@ class LowDoseNoiseSimulator(BaseCTArtifactSimulator):
 class FocalSpotBlurConfig:
     """焦点模糊配置 — sigma 为探测器方向 (bins) 上的高斯模糊宽度。"""
     blur_sigma_bins: dict[str, tuple[float, float]] = field(default_factory=lambda: {
-        "mild": (0.5, 1.0),
-        "moderate": (1.0, 2.0),
-        "severe": (2.0, 4.0),
+        "mild": (4.0, 6.0),
+        "moderate": (6.0, 9.0),
+        "severe": (9.0, 15.0),
     })
     axial_sigma_views: dict[str, tuple[float, float]] = field(default_factory=lambda: {
-        "mild": (0.0, 0.3),
-        "moderate": (0.3, 0.8),
-        "severe": (0.8, 1.5),
+        "mild": (1.0, 2.0),
+        "moderate": (2.0, 3.0),
+        "severe": (3.0, 5.0),
     })
 
 

@@ -1,0 +1,1 @@
+- [Env command pattern](feedback_env_commands.md) — Must use conda hook+activate pattern, not conda run or direct python path

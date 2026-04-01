@@ -191,7 +191,7 @@ def main() -> None:
     # --- Detector mode ---
     parser.add_argument("--detector", choices=["rule", "llm"], default="rule",
                         help="Detector mode: rule (threshold-based) or llm (VLM-based artifact detection)")
-    parser.add_argument("--llm-model", default="qwen/qwen-2.5-vl-72b-instruct",
+    parser.add_argument("--llm-model", default="qwen/qwen3.6-plus-preview:free",
                         help="LLM model name (for --planner llm or --detector llm)")
     parser.add_argument("--llm-base-url", default="https://openrouter.ai/api/v1",
                         help="LLM API base URL (for --planner llm or --detector llm)")
@@ -199,6 +199,8 @@ def main() -> None:
                         help="LLM temperature (for --planner llm or --detector llm)")
     parser.add_argument("--llm-max-tokens", type=int, default=1024,
                         help="LLM max tokens (for --planner llm or --detector llm)")
+    parser.add_argument("--dual-window", action="store_true",
+                        help="Send brain+subdural windows to LLM detector (improves accuracy, doubles API cost)")
     args = parser.parse_args()
 
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
@@ -253,14 +255,18 @@ def main() -> None:
             base_url=args.llm_base_url,
             temperature=args.llm_temperature,
             max_tokens=args.llm_max_tokens,
+            timeout=180,
         )
         llm_client = create_client(llm_cfg)
 
     # --- Detector ---
     if use_llm_detector:
         from src.degradations.llm_detector import LLMDegradationDetector
-        detector = LLMDegradationDetector(llm_client)
-        logger.info("Using LLM-based detector: model=%s", args.llm_model)
+        detector = LLMDegradationDetector(
+            llm_client, dual_window=args.dual_window,
+        )
+        logger.info("Using LLM-based detector: model=%s, dual_window=%s",
+                     args.llm_model, args.dual_window)
     else:
         detector = DegradationDetector()
         logger.info("Using rule-based detector")
@@ -317,7 +323,11 @@ def main() -> None:
                 psnr_before = compute_psnr(degraded, clean_recon, data_range)
                 ssim_before = compute_ssim(degraded, clean_recon, data_range)
 
-                report = detector.detect(degraded)
+                llm_raw = None
+                if use_llm_detector:
+                    report, llm_raw = detector.detect_with_raw(degraded)
+                else:
+                    report = detector.detect(degraded)
                 detected_types = [
                     f"{dt.value}({sv.value})" for dt, sv in report.degradations
                 ]
@@ -347,6 +357,7 @@ def main() -> None:
                     "artifact_type": art_type,
                     "severity": sev,
                     "planner": args.planner,
+                    "detector": args.detector,
                     "detected": detection_str,
                     "tools": tools_str,
                     "reasoning": planner_reasoning,
@@ -357,7 +368,10 @@ def main() -> None:
                     "ssim_after": round(ssim_after, 4),
                     "psnr_delta": round(psnr_after - psnr_before, 2),
                     "ssim_delta": round(ssim_after - ssim_before, 4),
+                    "iqa_scores": {k: round(v, 6) for k, v in report.iqa_scores.items()},
                 }
+                if llm_raw is not None:
+                    record["llm_raw"] = llm_raw
                 all_results.append(record)
 
                 logger.info(

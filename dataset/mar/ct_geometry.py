@@ -82,3 +82,51 @@ class CTGeometry:
         """FBP 重建: 正弦图 → 图像。"""
         result = self.fbp_op(sinogram.astype(np.float32))
         return np.asarray(result.data).copy()
+
+    # ------------------------------------------------------------------
+    # 自定义角度几何：用于 Sparse-View / Limited-Angle 物理正确仿真
+    # ------------------------------------------------------------------
+
+    def build_custom_angle_ops(
+        self, angles_rad: np.ndarray,
+    ) -> tuple:
+        """构建自定义角度的前向投影和 FBP 算子。
+
+        参考 MAR_SynCode simulate_data_angle.py：Sparse-View / Limited-Angle
+        应使用 **与实际采集一致的角度** 做前向投影和 FBP，而非在满角
+        sinogram 上抽行后用满角 FBP。
+
+        Returns:
+            (forward_fn, fbp_fn) — 均接受 np.ndarray 并返回 np.ndarray
+        """
+        cfg = self.config
+        reso = self.reso
+        sx = cfg.image_size * reso
+        su = 2.0 * np.sqrt(2 * (sx ** 2))
+
+        angle_partition = odl.nonuniform_partition(angles_rad.astype(np.float64))
+        detector_partition = odl.uniform_partition(-su / 2, su / 2, cfg.num_detectors)
+
+        src_radius = cfg.source_obj_dist_pixels * reso
+        det_radius = cfg.source_obj_dist_pixels * reso
+
+        geometry = odl_tomo.FanBeamGeometry(
+            angle_partition, detector_partition,
+            src_radius=src_radius, det_radius=det_radius,
+        )
+        ray_trafo = odl_tomo.RayTransform(
+            self.reco_space, geometry, impl=cfg.impl,
+        )
+        fbp_op = odl_tomo.fbp_op(
+            ray_trafo,
+            filter_type=cfg.filter_type,
+            frequency_scaling=cfg.frequency_scaling,
+        )
+
+        def fwd(image: np.ndarray) -> np.ndarray:
+            return np.asarray(ray_trafo(image.astype(np.float32)).data).copy()
+
+        def fbp(sinogram: np.ndarray) -> np.ndarray:
+            return np.asarray(fbp_op(sinogram.astype(np.float32)).data).copy()
+
+        return fwd, fbp

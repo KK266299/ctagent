@@ -27,6 +27,11 @@ _DEFAULT_CONFIG: dict[str, Any] = {
     "beam_hardening_thresholds": {"mild": 1.10, "moderate": 1.17, "severe": 1.22},
     "scatter_thresholds": {"mild": 0.12, "moderate": 0.18, "severe": 0.25},
     "truncation_thresholds": {"mild": 0.10, "moderate": 0.20, "severe": 0.35},
+    # --- New artifact type thresholds (v3) ---
+    "low_dose_thresholds": {"mild": 0.002, "moderate": 0.006, "severe": 0.015},
+    "sparse_view_thresholds": {"mild": 2.5, "moderate": 5.0, "severe": 10.0},
+    "limited_angle_thresholds": {"mild": 0.3, "moderate": 0.5, "severe": 0.7},
+    "focal_spot_blur_thresholds": {"mild": 2.5, "moderate": 3.5, "severe": 5.0},
     "mu_water": 0.192,
 }
 
@@ -60,6 +65,10 @@ class DegradationDetector:
         self.beam_hardening_thresholds = cfg["beam_hardening_thresholds"]
         self.scatter_thresholds = cfg["scatter_thresholds"]
         self.truncation_thresholds = cfg["truncation_thresholds"]
+        self.low_dose_thresholds = cfg["low_dose_thresholds"]
+        self.sparse_view_thresholds = cfg["sparse_view_thresholds"]
+        self.limited_angle_thresholds = cfg["limited_angle_thresholds"]
+        self.focal_spot_blur_thresholds = cfg["focal_spot_blur_thresholds"]
         self.mu_water: float = cfg["mu_water"]
 
     def detect(self, image: np.ndarray) -> DegradationReport:
@@ -135,6 +144,35 @@ class DegradationDetector:
         self._classify(
             report, truncation_score, self.truncation_thresholds,
             DegradationType.ARTIFACT_TRUNCATION, higher_is_worse=True,
+        )
+
+        # --- New artifact detectors (v3) ---
+        low_dose_score = self._estimate_low_dose(image)
+        report.iqa_scores["low_dose_score"] = low_dose_score
+        self._classify(
+            report, low_dose_score, self.low_dose_thresholds,
+            DegradationType.LOW_DOSE, higher_is_worse=True,
+        )
+
+        sparse_view_score = self._estimate_sparse_view(image)
+        report.iqa_scores["sparse_view_score"] = sparse_view_score
+        self._classify(
+            report, sparse_view_score, self.sparse_view_thresholds,
+            DegradationType.ARTIFACT_SPARSE_VIEW, higher_is_worse=True,
+        )
+
+        limited_angle_score = self._estimate_limited_angle(image)
+        report.iqa_scores["limited_angle_score"] = limited_angle_score
+        self._classify(
+            report, limited_angle_score, self.limited_angle_thresholds,
+            DegradationType.ARTIFACT_LIMITED_ANGLE, higher_is_worse=True,
+        )
+
+        focal_spot_blur_score = self._estimate_focal_spot_blur(image)
+        report.iqa_scores["focal_spot_blur_score"] = focal_spot_blur_score
+        self._classify(
+            report, focal_spot_blur_score, self.focal_spot_blur_thresholds,
+            DegradationType.ARTIFACT_FOCAL_SPOT_BLUR, higher_is_worse=True,
         )
 
         return report
@@ -400,6 +438,267 @@ class DegradationDetector:
         expected_ratio = 0.7
         loss = max(0.0, 1.0 - contrast_ratio / expected_ratio)
         return float(loss)
+
+    def _estimate_low_dose(self, image: np.ndarray) -> float:
+        """检测低剂量噪声 — 信号依赖噪声分析 (Poisson 特征)。
+
+        Poisson 噪声的方差与信号均值成正比 (var ≈ α·mean)。
+        在多个不同信号水平的 ROI 中测量 (mean, variance)，
+        拟合线性模型得到斜率 α，α 越大说明 Poisson 噪声越强。
+        """
+        from scipy.ndimage import uniform_filter
+
+        arr = image.astype(np.float64)
+        h, w = arr.shape
+
+        # 局部均值和局部方差
+        patch = 16
+        local_mean = uniform_filter(arr, size=patch)
+        local_sq_mean = uniform_filter(arr ** 2, size=patch)
+        local_var = np.maximum(local_sq_mean - local_mean ** 2, 0.0)
+
+        # 采样 body 区域内的点 (排除空气和极端值)
+        body_mask = arr > (self.mu_water * 0.3)
+        # 排除边缘
+        margin = patch
+        body_mask[:margin, :] = False
+        body_mask[-margin:, :] = False
+        body_mask[:, :margin] = False
+        body_mask[:, -margin:] = False
+
+        if np.sum(body_mask) < 200:
+            return 0.0
+
+        means = local_mean[body_mask]
+        variances = local_var[body_mask]
+
+        # 按信号水平分 bin 取中位数，减少异常值干扰
+        n_bins = 10
+        percentiles = np.linspace(0, 100, n_bins + 1)
+        bin_means = []
+        bin_vars = []
+        for i in range(n_bins):
+            lo = np.percentile(means, percentiles[i])
+            hi = np.percentile(means, percentiles[i + 1])
+            mask = (means >= lo) & (means < hi + 1e-10)
+            if np.sum(mask) < 10:
+                continue
+            bin_means.append(np.median(means[mask]))
+            bin_vars.append(np.median(variances[mask]))
+
+        if len(bin_means) < 4:
+            return 0.0
+
+        bin_means = np.array(bin_means)
+        bin_vars = np.array(bin_vars)
+
+        # 线性拟合 var = α·mean + β
+        if np.std(bin_means) < 1e-10:
+            return 0.0
+        coeffs = np.polyfit(bin_means, bin_vars, 1)
+        alpha = max(0.0, coeffs[0])  # 斜率
+
+        return float(alpha)
+
+    @staticmethod
+    def _estimate_sparse_view(image: np.ndarray) -> float:
+        """检测稀疏视角伪影 — FFT 角向能量周期性。
+
+        稀疏视角在 FFT 中产生角向周期性的能量分布 (view aliasing)，
+        通过计算角向能量轮廓的 FFT 频谱峰值来检测。
+        区别于 ring (角度一致性高) 和 motion (单方向能量集中)。
+        """
+        arr = image.astype(np.float64)
+        h, w = arr.shape
+        cy, cx = h // 2, w // 2
+
+        f = np.fft.fft2(arr)
+        fshift = np.abs(np.fft.fftshift(f))
+        fshift[cy, cx] = 0
+
+        Y, X = np.ogrid[:h, :w]
+        dist = np.sqrt((Y - cy) ** 2 + (X - cx) ** 2)
+        angle_map = np.arctan2(Y - cy, X - cx)
+
+        # 中频带 (排除 DC 和极高频)
+        r_min = min(cy, cx) * 0.1
+        r_max = min(cy, cx) * 0.7
+        band_mask = (dist > r_min) & (dist < r_max)
+
+        n_angles = 180
+        angular_energy = np.zeros(n_angles)
+        for i in range(n_angles):
+            a0 = -np.pi + i * (2 * np.pi / n_angles)
+            a1 = a0 + (2 * np.pi / n_angles)
+            ang_mask = (angle_map >= a0) & (angle_map < a1) & band_mask
+            count = np.sum(ang_mask)
+            if count > 0:
+                angular_energy[i] = np.sum(fshift[ang_mask] ** 2) / count
+
+        # 对角向能量轮廓做 FFT，检测周期性
+        ae_centered = angular_energy - np.mean(angular_energy)
+        ae_fft = np.abs(np.fft.rfft(ae_centered))
+        if len(ae_fft) < 3:
+            return 0.0
+
+        # 跳过 DC (index 0)，取峰值与中位数的比值
+        ae_fft_no_dc = ae_fft[1:]
+        if np.median(ae_fft_no_dc) < 1e-10:
+            return 0.0
+
+        peak_ratio = np.max(ae_fft_no_dc) / np.median(ae_fft_no_dc)
+        return float(max(0.0, peak_ratio - 1.0))
+
+    @staticmethod
+    def _estimate_limited_angle(image: np.ndarray) -> float:
+        """检测有限角伪影 — FFT 缺失楔检测。
+
+        有限角在 FFT 中形成一个连续的低能量扇区 (missing wedge)。
+        将 FFT 分成角度扇区，寻找连续低能量区域。
+        """
+        arr = image.astype(np.float64)
+        h, w = arr.shape
+        cy, cx = h // 2, w // 2
+
+        f = np.fft.fft2(arr)
+        fshift = np.abs(np.fft.fftshift(f))
+        fshift[cy, cx] = 0
+
+        Y, X = np.ogrid[:h, :w]
+        dist = np.sqrt((Y - cy) ** 2 + (X - cx) ** 2)
+        angle_map = np.arctan2(Y - cy, X - cx)
+
+        r_min = min(cy, cx) * 0.1
+        r_max = min(cy, cx) * 0.7
+        band_mask = (dist > r_min) & (dist < r_max)
+
+        n_sectors = 36
+        sector_energy = np.zeros(n_sectors)
+        for i in range(n_sectors):
+            a0 = -np.pi + i * (2 * np.pi / n_sectors)
+            a1 = a0 + (2 * np.pi / n_sectors)
+            sec_mask = (angle_map >= a0) & (angle_map < a1) & band_mask
+            count = np.sum(sec_mask)
+            if count > 0:
+                sector_energy[i] = np.sum(fshift[sec_mask] ** 2) / count
+
+        if np.median(sector_energy) < 1e-10:
+            return 0.0
+
+        # 归一化
+        normed = sector_energy / np.median(sector_energy)
+
+        # 寻找最大连续低能量区域 (阈值: 中位数的 50%)
+        low_thresh = 0.5
+        is_low = normed < low_thresh
+
+        # 环形搜索 (首尾相连)
+        doubled = np.concatenate([is_low, is_low])
+        max_run = 0
+        current_run = 0
+        for v in doubled:
+            if v:
+                current_run += 1
+                max_run = max(max_run, current_run)
+            else:
+                current_run = 0
+        max_run = min(max_run, n_sectors)  # 不超过一圈
+
+        # 缺失楔占比
+        missing_fraction = max_run / n_sectors
+        return float(missing_fraction)
+
+    def _estimate_focal_spot_blur(self, image: np.ndarray) -> float:
+        """检测焦点模糊 — 各向同性边缘展宽。
+
+        焦点/探测器模糊使所有方向的边缘均匀变宽 (各向同性)。
+        通过测量多个边缘的剖面宽度来估计。
+        区别于 motion blur (各向异性, 特定方向更宽)。
+        """
+        from scipy.ndimage import sobel, gaussian_filter1d
+
+        arr = image.astype(np.float64)
+        h, w = arr.shape
+
+        # body 区域
+        body_mask = arr > (self.mu_water * 0.3)
+        if np.sum(body_mask) < 100:
+            return 0.0
+
+        # Sobel 梯度
+        gx = sobel(arr, axis=1)
+        gy = sobel(arr, axis=0)
+        gmag = np.sqrt(gx ** 2 + gy ** 2)
+
+        # 只在 body 内部取边缘 (排除图像边框)
+        margin = 10
+        inner_mask = np.zeros_like(body_mask)
+        inner_mask[margin:-margin, margin:-margin] = True
+        edge_mask = inner_mask & body_mask
+
+        # 取强边缘点
+        gmag_body = gmag[edge_mask]
+        if len(gmag_body) < 100:
+            return 0.0
+        edge_thresh = np.percentile(gmag_body, 90)
+        strong_edges = edge_mask & (gmag >= edge_thresh)
+
+        edge_coords = np.argwhere(strong_edges)
+        if len(edge_coords) < 20:
+            return 0.0
+
+        # 随机采样边缘点，测量法向剖面宽度
+        rng = np.random.default_rng(42)
+        n_samples = min(200, len(edge_coords))
+        sample_idx = rng.choice(len(edge_coords), n_samples, replace=False)
+
+        widths = []
+        profile_half = 5  # 半径 5 像素
+
+        for idx in sample_idx:
+            py, px = edge_coords[idx]
+            gx_val = gx[py, px]
+            gy_val = gy[py, px]
+            g_norm = np.sqrt(gx_val ** 2 + gy_val ** 2)
+            if g_norm < 1e-8:
+                continue
+
+            # 法向方向 (垂直于边缘)
+            nx = gx_val / g_norm
+            ny = gy_val / g_norm
+
+            # 沿法向采样剖面
+            profile = []
+            valid = True
+            for t in range(-profile_half, profile_half + 1):
+                sy = int(round(py + t * ny))
+                sx = int(round(px + t * nx))
+                if 0 <= sy < h and 0 <= sx < w:
+                    profile.append(arr[sy, sx])
+                else:
+                    valid = False
+                    break
+
+            if not valid or len(profile) < 2 * profile_half + 1:
+                continue
+
+            profile = np.array(profile, dtype=np.float64)
+            # 用梯度幅度估计边缘宽度 (梯度的半高全宽)
+            grad_profile = np.abs(np.diff(profile))
+            if np.max(grad_profile) < 1e-10:
+                continue
+
+            # 半高全宽近似
+            half_max = np.max(grad_profile) / 2.0
+            above_half = grad_profile >= half_max
+            width = float(np.sum(above_half))
+            widths.append(width)
+
+        if len(widths) < 10:
+            return 0.0
+
+        avg_width = float(np.median(widths))
+        return avg_width
 
     @staticmethod
     def _estimate_truncation(image: np.ndarray) -> float:
